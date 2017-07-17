@@ -25,7 +25,7 @@
 # - get output
 
 if [ ! -f "mm10_refGene.gtf.gz" ]; then
-	echo "mm10_refGene.gtf.gz is not available."
+	echo "mm10_refGene.gtf.gz is not available." >&2
 	exit 1
 fi
 

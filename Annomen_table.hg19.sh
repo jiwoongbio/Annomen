@@ -25,7 +25,7 @@
 # - get output
 
 if [ ! -f "hg19_refGene.gtf.gz" ]; then
-	echo "hg19_refGene.gtf.gz is not available."
+	echo "hg19_refGene.gtf.gz is not available." >&2
 	exit 1
 fi
 
