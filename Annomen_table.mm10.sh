@@ -24,8 +24,13 @@
 # - file type returned: gzip compressed
 # - get output
 
+if [ ! -f "mm10_refGene.gtf.gz" ]; then
+	echo "mm10_refGene.gtf.gz is not available."
+	exit 1
+fi
+
 # Remove old files
-#rm -rf gene_info.gz gene2refseq.gz mm10_refGene.gtf refseq/M_musculus/mRNA_Prot mouse.rna.fna mouse.protein.faa mouse.rna.gbff Annomen_table.txt Annomen_table.log
+rm -rf mm10_chromFa.tar.gz mm10_chromFa gene_info.gz gene2refseq.gz mm10_refGene.gtf refseq/M_musculus/mRNA_Prot mouse.rna.fna mouse.protein.faa mouse.rna.gbff Annomen_table.txt Annomen_table.log
 
 # Prepare reference genome fasta file
 lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/chromFa.tar.gz -o mm10_chromFa.tar.gz'

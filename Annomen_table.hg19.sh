@@ -24,8 +24,13 @@
 # - file type returned: gzip compressed
 # - get output
 
+if [ ! -f "hg19_refGene.gtf.gz" ]; then
+	echo "hg19_refGene.gtf.gz is not available."
+	exit 1
+fi
+
 # Remove old files
-#rm -rf gene_info.gz gene2refseq.gz hg19_refGene.gtf refseq/H_sapiens/mRNA_Prot human.rna.fna human.protein.faa human.rna.gbff Annomen_table.txt Annomen_table.log
+rm -rf hg19_chromFa.tar.gz hg19_chromFa gene_info.gz gene2refseq.gz hg19_refGene.gtf refseq/H_sapiens/mRNA_Prot human.rna.fna human.protein.faa human.rna.gbff Annomen_table.txt Annomen_table.log
 
 # Prepare reference genome fasta file
 lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/chromFa.tar.gz -o hg19_chromFa.tar.gz'
