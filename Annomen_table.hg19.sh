@@ -49,8 +49,8 @@ perl refGene.gtf.pl hg19_refGene.gtf.gz gene_info.gz gene2refseq.gz 9606 > hg19_
 lftp -c 'mirror -p -L ftp://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/mRNA_Prot refseq/H_sapiens/mRNA_Prot'
 
 # Prepare input files: 1. transcript FASTA, 2. protein FASTA, 3. transcript GenBank
-for file in refseq/H_sapiens/mRNA_Prot/human.*.rna.fna.gz;     do gzip -dc $file; done | sed 's/^>ref|/>/' | sed 's/|.*$//' | tr '\n' ' ' | sed 's/ $/\n/' | sed 's/ >/\n>/g' | grep -v '^>XM_' | grep -v '^>XR_' | sed 's/ /\n/g' > human.rna.fna
-for file in refseq/H_sapiens/mRNA_Prot/human.*.protein.faa.gz; do gzip -dc $file; done | sed 's/^>ref|/>/' | sed 's/|.*$//' | tr '\n' ' ' | sed 's/ $/\n/' | sed 's/ >/\n>/g' | grep -v '^>XP_' | grep -v '^>YP_' | sed 's/ /\n/g' > human.protein.faa
+for file in refseq/H_sapiens/mRNA_Prot/human.*.rna.fna.gz;     do gzip -dc $file; done > human.rna.fna
+for file in refseq/H_sapiens/mRNA_Prot/human.*.protein.faa.gz; do gzip -dc $file; done > human.protein.faa
 for file in refseq/H_sapiens/mRNA_Prot/human.*.rna.gbff.gz;    do gzip -dc $file; done | perl splitGenBank.pl - human.rna.gbff
 
 # Generate Annomen table

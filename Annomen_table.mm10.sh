@@ -49,8 +49,8 @@ perl refGene.gtf.pl mm10_refGene.gtf.gz gene_info.gz gene2refseq.gz 10090 > mm10
 lftp -c 'mirror -p -L ftp://ftp.ncbi.nlm.nih.gov/refseq/M_musculus/mRNA_Prot refseq/M_musculus/mRNA_Prot'
 
 # Prepare input files: 1. transcript FASTA, 2. protein FASTA, 3. transcript GenBank
-for file in refseq/M_musculus/mRNA_Prot/mouse.*.rna.fna.gz;     do gzip -dc $file; done | sed 's/^>ref|/>/' | sed 's/|.*$//' | tr '\n' ' ' | sed 's/ $/\n/' | sed 's/ >/\n>/g' | grep -v '^>XM_' | grep -v '^>XR_' | sed 's/ /\n/g' > mouse.rna.fna
-for file in refseq/M_musculus/mRNA_Prot/mouse.*.protein.faa.gz; do gzip -dc $file; done | sed 's/^>ref|/>/' | sed 's/|.*$//' | tr '\n' ' ' | sed 's/ $/\n/' | sed 's/ >/\n>/g' | grep -v '^>XP_' | grep -v '^>YP_' | sed 's/ /\n/g' > mouse.protein.faa
+for file in refseq/M_musculus/mRNA_Prot/mouse.*.rna.fna.gz;     do gzip -dc $file; done > mouse.rna.fna
+for file in refseq/M_musculus/mRNA_Prot/mouse.*.protein.faa.gz; do gzip -dc $file; done > mouse.protein.faa
 for file in refseq/M_musculus/mRNA_Prot/mouse.*.rna.gbff.gz;    do gzip -dc $file; done | perl splitGenBank.pl - mouse.rna.gbff
 
 # Generate Annomen table
