@@ -1,0 +1,15 @@
+Chromosome	CHROM
+Position	POS
+Reference base	REF
+Alternate base	ALT
+#Sample	SAMPLE
+#Genotype	GT
+Gene name	Annomen.geneName
+Region type	Annomen.region
+Mutation class	Annomen.mutation
+Strand	Annomen.strand
+Splice distance	Annomen.spliceDistance
+Transcript ID	Annomen.transcriptId
+Protein ID	Annomen.proteinId
+Transcript variation nomenclature	Annomen.nucleotideVariationNomenclature
+Protein variation nomenclature	Annomen.proteinVariationNomenclature
