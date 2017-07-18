@@ -1,4 +1,5 @@
 # Author: Jiwoong Kim (jiwoongbio@gmail.com)
+#!/bin/bash
 
 # Requirements
 # 1. Perl: https://www.perl.org
@@ -54,4 +55,4 @@ for file in refseq/M_musculus/mRNA_Prot/mouse.*.protein.faa.gz; do gzip -dc $fil
 for file in refseq/M_musculus/mRNA_Prot/mouse.*.rna.gbff.gz;    do gzip -dc $file; done | perl splitGenBank.pl - mouse.rna.gbff
 
 # Generate Annomen table
-perl Annomen_table.pl mm10_refGene.gtf mm10.fasta mouse.rna.fna mouse.protein.faa mouse.rna.gbff > Annomen_table.txt 2> Annomen_table.log
+perl Annomen_table.pl mm10_refGene.gtf mm10.fasta mouse.rna.fna mouse.protein.faa mouse.rna.gbff > Annomen_table.mm10.txt 2> Annomen_table.mm10.log

@@ -1,4 +1,5 @@
 # Author: Jiwoong Kim (jiwoongbio@gmail.com)
+#!/bin/bash
 
 # Requirements
 # 1. Perl: https://www.perl.org
@@ -54,4 +55,4 @@ for file in refseq/H_sapiens/mRNA_Prot/human.*.protein.faa.gz; do gzip -dc $file
 for file in refseq/H_sapiens/mRNA_Prot/human.*.rna.gbff.gz;    do gzip -dc $file; done | perl splitGenBank.pl - human.rna.gbff
 
 # Generate Annomen table
-perl Annomen_table.pl hg19_refGene.gtf hg19.fasta human.rna.fna human.protein.faa human.rna.gbff > Annomen_table.txt 2> Annomen_table.log
+perl Annomen_table.pl hg19_refGene.gtf hg19.fasta human.rna.fna human.protein.faa human.rna.gbff > Annomen_table.hg19.txt 2> Annomen_table.hg19.log
