@@ -45,7 +45,7 @@ my %transcriptSequenceHash = ();
 	open(my $reader, ($transcriptFastaFile =~ /\.gz$/) ? "gzip -dc $transcriptFastaFile |" : $transcriptFastaFile);
 	while(my $line = <$reader>) {
 		chomp($line);
-		next if($line =~ /^>([^ ]+)/ && ($transcriptId = $1));
+		next if($line =~ /^>([^ ]*)/ && ($transcriptId = $1));
 		$transcriptSequenceHash{$transcriptId} .= $line;
 	}
 	close($reader);
@@ -56,7 +56,7 @@ my %proteinSequenceHash = ();
 	open(my $reader, ($proteinFastaFile =~ /\.gz$/) ? "gzip -dc $proteinFastaFile |" : $proteinFastaFile);
 	while(my $line = <$reader>) {
 		chomp($line);
-		next if($line =~ /^>([^ ]+)/ && ($proteinId = $1));
+		next if($line =~ /^>([^ ]*)/ && ($proteinId = $1));
 		$proteinSequenceHash{$proteinId} .= $line;
 	}
 	close($reader);
