@@ -39,7 +39,7 @@ while(my $line = <$reader>) {
 				$tokenHash{$key} = $value;
 			}
 		} else {
-			$tokenHash{$keyValue} = $keyValue;
+			$tokenHash{$keyValue} = $keyValue unless(defined($tokenHash{$keyValue}));
 		}
 	}
 	foreach my $column (@columnList) {

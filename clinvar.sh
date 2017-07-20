@@ -11,4 +11,4 @@ gzip -dc clinvar.vcf.gz | awk -F'\t' '($o ~ /^#/ || $1 ~ /^[0-9]+|X|Y$/)' | sed 
 $directory/Annomen.hg19.sh clinvar.vcf > clinvar.annotated.vcf
 
 # Generate variant table
-perl $directory/vcf.table.pl clinvar.annotated.vcf `grep -v '^#' column.txt | cut -f2` | bash -c "cat <(grep -v '^#' column.txt | cut -f1 | tr '\n' '\t' | sed 's/\t$/\n/' | sed 's/^/#/') -" > clinvar.annotated.txt
+perl $directory/vcf.table.pl -p clinvar.annotated.vcf `grep -v '^#' column.txt | cut -f2` | bash -c "cat <(grep -v '^#' column.txt | cut -f1 | tr '\n' '\t' | sed 's/\t$/\n/' | sed 's/^/#/') -" > clinvar.annotated.txt
