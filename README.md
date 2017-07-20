@@ -23,7 +23,7 @@ Annotate variant nomenclature
   * startcodon
   * splicing
   * junction
-* Strand: + (forward) or - (reverse)
+* Strand
 * Splice distance
 * Transcript ID
 * Protein ID
