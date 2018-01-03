@@ -299,10 +299,16 @@ sub getTranscriptProteinVariationNomenclatures {
 			my $originalCodingSequence = join('', (map {substr($transcriptSequence, $_->[0] - 1, $_->[-1] - $_->[0] + 1)} @codingRegionList), substr($transcriptSequence, $codingRegionList[-1]->[-1]));
 			my $mutationCodingSequence = $originalCodingSequence;
 			substr($mutationCodingSequence, $codingVariationPosition - 1, length($originalTranscriptVariation), $mutationTranscriptVariation);
-			if((my $index = $tokenHash->{'codonStart'} - 1) > 0) {
-				$codingVariationPosition = $codingVariationPosition - $index;
-				$originalCodingSequence = substr($originalCodingSequence, $index);
-				$mutationCodingSequence = substr($mutationCodingSequence, $index);
+			if(my $frame = $tokenHash->{'frame'}) {
+				$codingVariationPosition = $codingVariationPosition - $frame;
+				if($frame > 0) {
+					$originalCodingSequence = substr($originalCodingSequence, $frame);
+					$mutationCodingSequence = substr($mutationCodingSequence, $frame);
+				}
+				if($frame < 0) {
+					$originalCodingSequence = ('N' x -$frame) . $originalCodingSequence;
+					$mutationCodingSequence = ('N' x -$frame) . $mutationCodingSequence;
+				}
 			}
 			my $proteinVariationPosition = int(($codingVariationPosition - 1) / 3) + 1;
 			my $originalProteinSequence = $proteinSequenceHash{$tokenHash->{'proteinId'}};
