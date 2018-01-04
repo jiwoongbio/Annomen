@@ -34,10 +34,8 @@ fi
 rm -rf rn6_chromFa.tar.gz rn6_chromFa gene_info.gz gene2refseq.gz rn6_refGene.gtf refseq/R_norvegicus/mRNA_Prot rat.rna.fna rat.protein.faa rat.rna.gbff Annomen_table.txt Annomen_table.log
 
 # Prepare reference genome fasta file
-lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/rn6/bigZips/chromFa.tar.gz -o rn6_chromFa.tar.gz'
-mkdir rn6_chromFa
-tar -zxf rn6_chromFa.tar.gz -C rn6_chromFa
-cat rn6_chromFa/chrM.fa `ls rn6_chromFa/chr*.fa | awk '($o ~ /^rn6_chromFa\/chr[0-9]+\.fa$/)' | sed 's/^rn6_chromFa\/chr//' | sort -n | sed 's/^/rn6_chromFa\/chr/'` rn6_chromFa/chrX.fa rn6_chromFa/chrY.fa rn6_chromFa/chrM_*.fa `ls rn6_chromFa/chr*.fa | awk '($o ~ /^rn6_chromFa\/chr[0-9]+_/)' | sed 's/^rn6_chromFa\/chr//' | sort -n | sed 's/^/rn6_chromFa\/chr/'` rn6_chromFa/chrX_*.fa rn6_chromFa/chrY_*.fa `ls rn6_chromFa/chr*.fa | awk '($o !~ /^rn6_chromFa\/chr(M|[0-9]+|X|Y)\.fa$/ && $o !~ /^rn6_chromFa\/chr(M|[0-9]+|X|Y)_/)'` > rn6.fasta
+lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/rn6/bigZips/rn6.fa.gz'
+gzip -dc rn6.fa.gz > rn6.fasta
 
 # Download gene files from NCBI FTP
 lftp -c 'get ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene_info.gz'
