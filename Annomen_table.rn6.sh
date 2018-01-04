@@ -31,7 +31,7 @@ if [ ! -f "rn6_refGene.gtf.gz" ]; then
 fi
 
 # Remove old files
-rm -rf rn6_chromFa.tar.gz rn6_chromFa gene_info.gz gene2refseq.gz rn6_refGene.gtf refseq/R_norvegicus/mRNA_Prot rat.rna.fna rat.protein.faa rat.rna.gbff Annomen_table.txt Annomen_table.log
+rm -rf rn6.fa.gz gene_info.gz gene2refseq.gz rn6_refGene.gtf refseq/R_norvegicus/mRNA_Prot rat.rna.fna rat.protein.faa rat.rna.gbff Annomen_table.txt Annomen_table.log
 
 # Prepare reference genome fasta file
 lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/rn6/bigZips/rn6.fa.gz'
