@@ -372,7 +372,7 @@ sub needle {
 		print $writer "$seqB\n";
 		close($writer);
 	}
-	print STDERR `bash -c "echo -en '$gapOpen\\n$gapExtend\\n'" | needle -asequence $prefix.asequence -bsequence $prefix.bsequence -outfile $prefix.outfile -datafile EDNAFULL`;
+	print STDERR `bash -c "echo -en '$gapOpen\\n$gapExtend\\n'" | timeout 600 needle -asequence $prefix.asequence -bsequence $prefix.bsequence -outfile $prefix.outfile -datafile EDNAFULL`;
 	print STDERR "\n";
 	my ($alignA, $alignB, $identity) = ('', '', 0);
 	if(-e "$prefix.outfile") {
@@ -409,7 +409,7 @@ sub stretcher {
 		print $writer "$seqB\n";
 		close($writer);
 	}
-	print STDERR `stretcher -asequence $prefix.asequence -bsequence $prefix.bsequence -outfile $prefix.outfile -datafile EDNAFULL $gapOpen $gapExtend`;
+	print STDERR `timeout 600 stretcher -asequence $prefix.asequence -bsequence $prefix.bsequence -outfile $prefix.outfile -datafile EDNAFULL $gapOpen $gapExtend`;
 	print STDERR "\n";
 	my ($alignA, $alignB, $identity) = ('', '', 0);
 	if(-e "$prefix.outfile") {
