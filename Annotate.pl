@@ -12,7 +12,7 @@ my ($inputFile, $referenceFastaFile, $annotationTableFile, @columnList) = @ARGV;
 my $db = Bio::DB::Fasta->new($referenceFastaFile);
 {
 	chomp(my @chromosomeList = `find $referenceFastaFile.fai -newer $referenceFastaFile 2> /dev/null | xargs cat | cut -f1`);
-	chomp(@chromosomeList = `grep '^>' $referenceFastaFile | sed 's/^>//' | sed 's/ .*\$//'`) unless(@chromosomeList);
+	chomp(@chromosomeList = `grep '^>' $referenceFastaFile | sed 's/^>//' | sed 's/\\s.*\$//'`) unless(@chromosomeList);
 	my %chromosomeIndexHash = ();
 	@chromosomeIndexHash{@chromosomeList} = 0 .. scalar(@chromosomeList) - 1;
 	open(my $reader, $annotationTableFile);
