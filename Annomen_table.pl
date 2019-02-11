@@ -115,7 +115,6 @@ foreach my $chromosome (@chromosomeList) {
 sub printTable {
 	my ($writer, $chromosome, $transcriptId, $geneName, $strand, $proteinId, $codingStart, $codingEnd, $frame, @exonStartEndList) = @_;
 	$transcriptId =~ s/_dup[0-9]+$//;
-	$transcriptId =~ s/\.[0-9]+$//;
 	my $exonCount = scalar(@exonStartEndList);
 	my $exonSequence = '';
 	my @exonPositionList = ();
@@ -133,6 +132,11 @@ sub printTable {
 	if(defined($gbDirectory)) {
 		if(-e "$gbDirectory/$transcriptId.gb") {
 			my $seqInput_object = Bio::SeqIO->new(-file => "$gbDirectory/$transcriptId.gb", -format => 'genbank');
+			while(my $seq_object = $seqInput_object->next_seq()) {
+				push(@seq_objectList, $seq_object);
+			}
+		} elsif($transcriptId =~ /^(.+)\.[0-9]+$/ && -e "$gbDirectory/$1.gb") {
+			my $seqInput_object = Bio::SeqIO->new(-file => "$gbDirectory/$1.gb", -format => 'genbank');
 			while(my $seq_object = $seqInput_object->next_seq()) {
 				push(@seq_objectList, $seq_object);
 			}
@@ -441,7 +445,7 @@ sub getChromosomeList {
 		open(my $reader, $referenceFastaFile);
 		while(my $line = <$reader>) {
 			chomp($line);
-			push(@chromosomeList, $1) if($line =~ /^>([^ ]+)/);
+			push(@chromosomeList, $1) if($line =~ /^>(\S*)/);
 		}
 		close($reader);
 	}

@@ -37,8 +37,7 @@ close($reader);
 foreach my $chromosome (keys %chromosomeWriterHash) {
 	close($chromosomeWriterHash{$chromosome});
 }
-chomp(my @chromosomeList = `find $referenceFastaFile.fai -newer $referenceFastaFile 2> /dev/null | xargs cat | cut -f1`);
-chomp(@chromosomeList = `grep '^>' $referenceFastaFile | sed 's/^>//'`) unless(@chromosomeList);
+my @chromosomeList = getChromosomeList();
 s/[ |>;()\$].*$// foreach(@chromosomeList);
 my @sortOptionList = map {sprintf('-k%d,%dn', $_ + 1, $_ + 1)} @positionIndexList;
 @sortOptionList = (sprintf('-k%d,%d', $chromosomeIndex + 1, $chromosomeIndex + 1), @sortOptionList);
@@ -50,4 +49,26 @@ system(sprintf('rm -rf %s', getTemporaryFile('*')));
 sub getTemporaryFile {
 	my ($chromosome) = @_;
 	return "$temporaryDirectory/sort_by_reference.$hostname.$$.$chromosome";
+}
+
+sub getChromosomeList {
+	my @chromosomeList = ();
+	if(my $faiFile = `find $referenceFastaFile.fai -newer $referenceFastaFile 2> /dev/null`) {
+		chomp($faiFile);
+		open(my $reader, $faiFile);
+		while(my $line = <$reader>) {
+			chomp($line);
+			my @tokenList = split(/\t/, $line);
+			push(@chromosomeList, $tokenList[0]);
+		}
+		close($reader);
+	} else {
+		open(my $reader, $referenceFastaFile);
+		while(my $line = <$reader>) {
+			chomp($line);
+			push(@chromosomeList, $1) if($line =~ /^>(\S*)/);
+		}
+		close($reader);
+	}
+	return @chromosomeList;
 }

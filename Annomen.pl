@@ -5,9 +5,14 @@ local $SIG{__WARN__} = sub { die $_[0] };
 
 use List::Util qw(sum min max);
 use Bio::DB::Fasta;
-use Getopt::Long;
+use Getopt::Long qw(:config no_ignore_case);
 
-GetOptions('c=s' => \(my $codons = ''), 's=s' => \(my $startCodons = 'ATG,CTG,TTG'), 'r' => \(my $checkReferenceVariation = ''));
+GetOptions(
+	'c=s' => \(my $codons = ''),
+	's=s' => \(my $startCodons = 'ATG,CTG,TTG'),
+	'r' => \(my $checkReferenceVariation = ''),
+	'p=s' => \(my $peptideLength = ''),
+);
 my ($inputFile, $referenceFastaFile, $annotationTableFile, $transcriptFastaFile, $proteinFastaFile) = @ARGV;
 my $db = Bio::DB::Fasta->new($referenceFastaFile);
 my %aaOneToThreeLetter = ('A' => 'Ala', 'B' => 'Asx', 'C' => 'Cys', 'D' => 'Asp', 'E' => 'Glu', 'F' => 'Phe', 'G' => 'Gly', 'H' => 'His', 'I' => 'Ile', 'K' => 'Lys', 'L' => 'Leu', 'M' => 'Met', 'N' => 'Asn', 'P' => 'Pro', 'Q' => 'Gln', 'R' => 'Arg', 'S' => 'Ser', 'T' => 'Thr', 'V' => 'Val', 'W' => 'Trp', 'X' => 'Xxx', 'Y' => 'Tyr', 'Z' => 'Glx');
@@ -63,8 +68,7 @@ my %proteinSequenceHash = ();
 	s/\*?$/*/ foreach(values %proteinSequenceHash);
 }
 {
-	chomp(my @chromosomeList = `find $referenceFastaFile.fai -newer $referenceFastaFile 2> /dev/null | xargs cat | cut -f1`);
-	chomp(@chromosomeList = `grep '^>' $referenceFastaFile | sed 's/^>//' | sed 's/\\s.*\$//'`) unless(@chromosomeList);
+	my @chromosomeList = getChromosomeList();
 	my %chromosomeIndexHash = ();
 	@chromosomeIndexHash{@chromosomeList} = 0 .. scalar(@chromosomeList) - 1;
 	open(my $reader, $annotationTableFile);
@@ -100,8 +104,9 @@ my %proteinSequenceHash = ();
 		close($reader);
 	}
 }
-my ($title, @columnList) = ('Annomen', 'mutation', 'region', 'strand', 'spliceDistance', 'geneName', 'transcriptId', 'proteinId', 'nucleotideVariationNomenclature', 'proteinVariationNomenclature');
+my ($title, @columnList) = ('Annomen', 'mutation', 'region', 'strand', 'spliceDistance', 'geneName', 'transcriptId', 'proteinId', 'nucleotideVariationNomenclature', 'proteinVariationNomenclature', ($peptideLength ne '' ? 'peptides' : ()));
 my $vcf = 0;
+my @peptideList = ();
 open(my $reader, $inputFile);
 while(my $line = <$reader>) {
 	chomp($line);
@@ -121,9 +126,11 @@ while(my $line = <$reader>) {
 				my %tokenHash = ();
 				@tokenHash{(getColumnList)} = @$tokenList;
 				next if($tokenHash{'end'} < $start);
+				@peptideList = ();
 				if(abs($tokenHash{'spliceDistance'} = getSpliceDistance($start, $end, \%tokenHash)) > 0) {
 					setMutationNomenclatures($chromosome, $position, $refBase, \@altBaseList, \%tokenHash);
 				}
+				$tokenHash{'peptides'} = join(',', @peptideList) if($peptideLength ne '');
 				$tokenHash{'region'} = getRegion($tokenHash{'strand'}, $start, $end, @tokenHash{'region', 'codingStart', 'codingEnd'});
 				my $transcriptId = $tokenHash{'transcriptId'};
 				push(@transcriptIdList, $transcriptId) unless(defined($transcriptIdTokenHashListHash{$transcriptId}));
@@ -350,6 +357,18 @@ sub getTranscriptProteinVariationNomenclatures {
 				my ($originalStartCodon, $mutationStartCodon) = map {substr($_, 0, 3)} ($originalCodingSequence, $mutationCodingSequence);
 				if(grep {$_ eq $mutationStartCodon} ($originalStartCodon, @startCodonList)) {
 					$proteinVariationNomenclature = getProteinVariationNomenclature($originalProteinSequence, $mutationProteinSequence, $proteinVariationPosition, $originalProteinVariationLength, $mutationProteinVariationLength, $frameshift);
+					if($peptideLength ne '') {
+						if($peptideLength =~ /^([0-9]+)$/) {
+							foreach my $index (max(0, ($proteinVariationPosition - 1) - ($1 - 1)) .. ($frameshift == 0 ? min(($proteinVariationPosition - 1) + ($mutationProteinVariationLength - 1), (length($mutationProteinSequence) - 1) - ($1 - 1)) : (length($mutationProteinSequence) - 1) - ($1 - 1))) {
+								push(@peptideList, substr($mutationProteinSequence, $index, $1));
+							}
+						}
+						if($peptideLength =~ /^\+([0-9]+)$/) {
+							my $index = max(0, ($proteinVariationPosition - 1) - ($1 - 1));
+							my $length = ($frameshift == 0 ? min(($proteinVariationPosition - 1) + ($mutationProteinVariationLength - 1), (length($mutationProteinSequence) - 1) - ($1 - 1)) : (length($mutationProteinSequence) - 1) - ($1 - 1)) - $index + $1;
+							push(@peptideList, substr($mutationProteinSequence, $index, $length));
+						}
+					}
 				} else {
 					$proteinVariationNomenclature = 'p.?';
 				}
@@ -536,4 +555,26 @@ sub getReverseComplementarySequence {
 	my ($sequence) = @_;
 	($sequence = reverse($sequence)) =~ tr/ACGT/TGCA/;
 	return $sequence;
+}
+
+sub getChromosomeList {
+	my @chromosomeList = ();
+	if(my $faiFile = `find $referenceFastaFile.fai -newer $referenceFastaFile 2> /dev/null`) {
+		chomp($faiFile);
+		open(my $reader, $faiFile);
+		while(my $line = <$reader>) {
+			chomp($line);
+			my @tokenList = split(/\t/, $line);
+			push(@chromosomeList, $tokenList[0]);
+		}
+		close($reader);
+	} else {
+		open(my $reader, $referenceFastaFile);
+		while(my $line = <$reader>) {
+			chomp($line);
+			push(@chromosomeList, $1) if($line =~ /^>(\S*)/);
+		}
+		close($reader);
+	}
+	return @chromosomeList;
 }

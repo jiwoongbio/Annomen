@@ -11,8 +11,7 @@ GetOptions('p' => \(my $positionOnly = ''));
 my ($inputFile, $referenceFastaFile, $annotationTableFile, @columnList) = @ARGV;
 my $db = Bio::DB::Fasta->new($referenceFastaFile);
 {
-	chomp(my @chromosomeList = `find $referenceFastaFile.fai -newer $referenceFastaFile 2> /dev/null | xargs cat | cut -f1`);
-	chomp(@chromosomeList = `grep '^>' $referenceFastaFile | sed 's/^>//' | sed 's/\\s.*\$//'`) unless(@chromosomeList);
+	my @chromosomeList = getChromosomeList();
 	my %chromosomeIndexHash = ();
 	@chromosomeIndexHash{@chromosomeList} = 0 .. scalar(@chromosomeList) - 1;
 	open(my $reader, $annotationTableFile);
@@ -133,4 +132,26 @@ sub stripIdentical {
 		$position += 1;
 	}
 	return ($position, @sequenceList);
+}
+
+sub getChromosomeList {
+	my @chromosomeList = ();
+	if(my $faiFile = `find $referenceFastaFile.fai -newer $referenceFastaFile 2> /dev/null`) {
+		chomp($faiFile);
+		open(my $reader, $faiFile);
+		while(my $line = <$reader>) {
+			chomp($line);
+			my @tokenList = split(/\t/, $line);
+			push(@chromosomeList, $tokenList[0]);
+		}
+		close($reader);
+	} else {
+		open(my $reader, $referenceFastaFile);
+		while(my $line = <$reader>) {
+			chomp($line);
+			push(@chromosomeList, $1) if($line =~ /^>(\S*)/);
+		}
+		close($reader);
+	}
+	return @chromosomeList;
 }

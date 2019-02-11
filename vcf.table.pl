@@ -26,7 +26,7 @@ while(my $line = <$reader>) {
 		$tokenHashList[$index] = {'SAMPLE' => $sampleList[$index]};
 		@{$tokenHashList[$index]}{split(':', $tokenHash{'FORMAT'})} = split(':', $genotypeList[$index]);
 	}
-	next if($pass == 0 && grep {$_->{'GT'} eq './.'} @tokenHashList);
+	next if($pass == 0 && grep {defined($_->{'GT'}) && $_->{'GT'} eq './.'} @tokenHashList);
 	my %tokenHashListHash = ();
 	foreach my $keyValue (split(';', $tokenHash{'INFO'})) {
 		if($keyValue =~ /^([^=]*)=(.*)$/) {
