@@ -60,11 +60,11 @@ git clone https://github.com/jiwoongbio/Annomen.git
       * genome: Human
       * assembly: Feb. 2009 (GRCh37/hg19)
       * group: Genes and Gene Predictions
-      * track: RefSeq Genes
-      * table: refGene
+      * track: NCBI RefSeq
+      * table: RefSeq All (ncbiRefSeq)
       * region: genome
-      * output format: GTF - gene transfer format
-      * output file: hg19_refGene.gtf.gz
+      * output format: GTF - gene transfer format (limited)
+      * output file: hg19_RefSeq.gtf.gz
       * file type returned: gzip compressed
       * get output
    2. Execute **Annomen_table.hg19.sh**
