@@ -15,36 +15,34 @@
 # http://genome.ucsc.edu/cgi-bin/hgTables
 # - clade: Mammal
 # - genome: Human
-# - assembly: Feb. 2009 (GRCh37/hg19)
+# - assembly: Dec. 2013 (GRCh38/hg38)
 # - group: Genes and Gene Predictions
 # - track: NCBI RefSeq
 # - table: RefSeq All (ncbiRefSeq)
 # - region: genome
 # - output format: GTF - gene transfer format (limited)
-# - output file: hg19_RefSeq.gtf.gz
+# - output file: hg38_RefSeq.gtf.gz
 # - file type returned: gzip compressed
 # - get output
 
-if [ ! -f "hg19_RefSeq.gtf.gz" ]; then
-	echo "hg19_RefSeq.gtf.gz is not available." >&2
+if [ ! -f "hg38_RefSeq.gtf.gz" ]; then
+	echo "hg38_RefSeq.gtf.gz is not available." >&2
 	exit 1
 fi
 
 # Remove old files
-rm -rf hg19_chromFa.tar.gz hg19_chromFa gene_info.gz gene2refseq.gz hg19_RefSeq.gtf refseq/H_sapiens/mRNA_Prot human.rna.fna human.protein.faa human.rna.gbff Annomen_table.txt Annomen_table.log
+rm -rf hg38.fa.gz gene_info.gz gene2refseq.gz hg38_RefSeq.gtf refseq/H_sapiens/mRNA_Prot human.rna.fna human.protein.faa human.rna.gbff Annomen_table.txt Annomen_table.log
 
 # Prepare reference genome fasta file
-lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/chromFa.tar.gz -o hg19_chromFa.tar.gz'
-mkdir hg19_chromFa
-tar -zxf hg19_chromFa.tar.gz -C hg19_chromFa
-cat hg19_chromFa/chrM.fa `ls hg19_chromFa/chr*.fa | awk '($o ~ /^hg19_chromFa\/chr[0-9]+\.fa$/)' | sed 's/^hg19_chromFa\/chr//' | sort -n | sed 's/^/hg19_chromFa\/chr/'` hg19_chromFa/chrX.fa hg19_chromFa/chrY.fa hg19_chromFa/chrM_*.fa `ls hg19_chromFa/chr*.fa | awk '($o ~ /^hg19_chromFa\/chr[0-9]+_/)' | sed 's/^hg19_chromFa\/chr//' | sort -n | sed 's/^/hg19_chromFa\/chr/'` hg19_chromFa/chrX_*.fa hg19_chromFa/chrY_*.fa `ls hg19_chromFa/chr*.fa | awk '($o !~ /^hg19_chromFa\/chr(M|[0-9]+|X|Y)\.fa$/ && $o !~ /^hg19_chromFa\/chr(M|[0-9]+|X|Y)_/)'` > hg19.fasta
+lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz'
+gzip -dc hg38.fa.gz > hg38.fasta
 
 # Download gene files from NCBI FTP
 lftp -c 'get ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene_info.gz'
 lftp -c 'get ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2refseq.gz'
 
 # Generate GTF file with gene names
-perl RefSeq.gtf.pl hg19_RefSeq.gtf.gz gene_info.gz gene2refseq.gz 9606 > hg19_RefSeq.gtf
+perl RefSeq.gtf.pl hg38_RefSeq.gtf.gz gene_info.gz gene2refseq.gz 10116 > hg38_RefSeq.gtf
 
 # Download RefSeq files from NCBI FTP
 lftp -c 'mirror -p -L ftp://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/mRNA_Prot refseq/H_sapiens/mRNA_Prot'
@@ -55,4 +53,4 @@ for file in refseq/H_sapiens/mRNA_Prot/human.*.protein.faa.gz; do gzip -dc $file
 for file in refseq/H_sapiens/mRNA_Prot/human.*.rna.gbff.gz;    do gzip -dc $file; done | perl splitGenBank.pl - human.rna.gbff
 
 # Generate Annomen table
-perl Annomen_table.pl hg19_RefSeq.gtf hg19.fasta human.rna.fna human.protein.faa human.rna.gbff > Annomen_table.hg19.txt 2> Annomen_table.hg19.log
+perl Annomen_table.pl hg38_RefSeq.gtf hg38.fasta human.rna.fna human.protein.faa human.rna.gbff > Annomen_table.hg38.txt 2> Annomen_table.hg38.log

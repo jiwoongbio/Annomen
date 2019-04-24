@@ -5,13 +5,16 @@ local $SIG{__WARN__} = sub { die $_[0] };
 
 use Getopt::Long;
 
-my ($append, $comment, $header) = (0, 0, 0);
-GetOptions('a' => \$append, 'c' => \$comment, 'h' => \$header);
+GetOptions(
+	'c' => \(my $comment = ''),
+	'h' => \(my $header = ''),
+	'a' => \(my $append = ''),
+);
 my ($tableFile, $referenceFastaFile, $chromosomeIndex, @positionIndexList) = @ARGV;
 my $temporaryDirectory = $ENV{'TMPDIR'};
 $temporaryDirectory = '/tmp' unless($temporaryDirectory);
 chomp(my $hostname = `hostname`);
-system(sprintf('rm -rf %s', getTemporaryFile('*')));
+system(sprintf('rm -rf %s', getChromosomeTemporaryFile('*')));
 my %chromosomeWriterHash = ();
 open(my $reader, $tableFile);
 while(my $line = <$reader>) {
@@ -24,7 +27,7 @@ while(my $line = <$reader>) {
 	if(defined($chromosomeWriterHash{$chromosome})) {
 		print {$chromosomeWriterHash{$chromosome}} "$line\n";
 	} else {
-		open(my $writer, ($append ? '>>' : '>'), getTemporaryFile($chromosome));
+		open(my $writer, ($append ? '>>' : '>'), getChromosomeTemporaryFile($chromosome));
 		print $writer "$line\n";
 		if($append) {
 			close($writer);
@@ -42,18 +45,18 @@ s/[ |>;()\$].*$// foreach(@chromosomeList);
 my @sortOptionList = map {sprintf('-k%d,%dn', $_ + 1, $_ + 1)} @positionIndexList;
 @sortOptionList = (sprintf('-k%d,%d', $chromosomeIndex + 1, $chromosomeIndex + 1), @sortOptionList);
 foreach my $chromosome (@chromosomeList) {
-	system("sort --field-separator='\t' @sortOptionList " . getTemporaryFile($chromosome)) if(-e getTemporaryFile($chromosome));
+	system("sort --field-separator='\t' @sortOptionList " . getChromosomeTemporaryFile($chromosome)) if(-e getChromosomeTemporaryFile($chromosome));
 }
-system(sprintf('rm -rf %s', getTemporaryFile('*')));
+system(sprintf('rm -rf %s', getChromosomeTemporaryFile('*')));
 
-sub getTemporaryFile {
+sub getChromosomeTemporaryFile {
 	my ($chromosome) = @_;
 	return "$temporaryDirectory/sort_by_reference.$hostname.$$.$chromosome";
 }
 
 sub getChromosomeList {
 	my @chromosomeList = ();
-	if(my $faiFile = `find $referenceFastaFile.fai -newer $referenceFastaFile 2> /dev/null`) {
+	if(my $faiFile = $referenceFastaFile =~ /\.fai$/ ? $referenceFastaFile : `find $referenceFastaFile.fai -newer $referenceFastaFile 2> /dev/null`) {
 		chomp($faiFile);
 		open(my $reader, $faiFile);
 		while(my $line = <$reader>) {

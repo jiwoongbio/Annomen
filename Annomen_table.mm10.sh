@@ -17,21 +17,21 @@
 # - genome: Mouse
 # - assembly: Dec. 2011 (GRCm38/mm10)
 # - group: Genes and Gene Predictions
-# - track: RefSeq Genes
-# - table: refGene
+# - track: NCBI RefSeq
+# - table: RefSeq All (ncbiRefSeq)
 # - region: genome
-# - output format: GTF - gene transfer format
-# - output file: mm10_refGene.gtf.gz
+# - output format: GTF - gene transfer format (limited)
+# - output file: mm10_RefSeq.gtf.gz
 # - file type returned: gzip compressed
 # - get output
 
-if [ ! -f "mm10_refGene.gtf.gz" ]; then
-	echo "mm10_refGene.gtf.gz is not available." >&2
+if [ ! -f "mm10_RefSeq.gtf.gz" ]; then
+	echo "mm10_RefSeq.gtf.gz is not available." >&2
 	exit 1
 fi
 
 # Remove old files
-rm -rf mm10_chromFa.tar.gz mm10_chromFa gene_info.gz gene2refseq.gz mm10_refGene.gtf refseq/M_musculus/mRNA_Prot mouse.rna.fna mouse.protein.faa mouse.rna.gbff Annomen_table.txt Annomen_table.log
+rm -rf mm10_chromFa.tar.gz mm10_chromFa gene_info.gz gene2refseq.gz mm10_RefSeq.gtf refseq/M_musculus/mRNA_Prot mouse.rna.fna mouse.protein.faa mouse.rna.gbff Annomen_table.txt Annomen_table.log
 
 # Prepare reference genome fasta file
 lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/chromFa.tar.gz -o mm10_chromFa.tar.gz'
@@ -44,9 +44,9 @@ lftp -c 'get ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene_info.gz'
 lftp -c 'get ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2refseq.gz'
 
 # Generate GTF file with gene names
-perl refGene.gtf.pl mm10_refGene.gtf.gz gene_info.gz gene2refseq.gz 10090 > mm10_refGene.gtf
+perl RefSeq.gtf.pl mm10_RefSeq.gtf.gz gene_info.gz gene2refseq.gz 10090 > mm10_RefSeq.gtf
 
-# Download refGene files from NCBI FTP
+# Download RefSeq files from NCBI FTP
 lftp -c 'mirror -p -L ftp://ftp.ncbi.nlm.nih.gov/refseq/M_musculus/mRNA_Prot refseq/M_musculus/mRNA_Prot'
 
 # Prepare input files: 1. transcript FASTA, 2. protein FASTA, 3. transcript GenBank
@@ -55,4 +55,4 @@ for file in refseq/M_musculus/mRNA_Prot/mouse.*.protein.faa.gz; do gzip -dc $fil
 for file in refseq/M_musculus/mRNA_Prot/mouse.*.rna.gbff.gz;    do gzip -dc $file; done | perl splitGenBank.pl - mouse.rna.gbff
 
 # Generate Annomen table
-perl Annomen_table.pl mm10_refGene.gtf mm10.fasta mouse.rna.fna mouse.protein.faa mouse.rna.gbff > Annomen_table.mm10.txt 2> Annomen_table.mm10.log
+perl Annomen_table.pl mm10_RefSeq.gtf mm10.fasta mouse.rna.fna mouse.protein.faa mouse.rna.gbff > Annomen_table.mm10.txt 2> Annomen_table.mm10.log
