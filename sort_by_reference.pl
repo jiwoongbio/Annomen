@@ -3,13 +3,26 @@ use strict;
 use warnings;
 local $SIG{__WARN__} = sub { die $_[0] };
 
-use Getopt::Long;
+use Getopt::Long qw(:config no_ignore_case);
 
 GetOptions(
+	'h' => \(my $help = ''),
 	'c' => \(my $comment = ''),
 	'h' => \(my $header = ''),
 	'a' => \(my $append = ''),
 );
+if($help || scalar(@ARGV) == 0) {
+	die <<EOF;
+
+Usage:   perl sort_by_reference.pl [options] input.txt reference.fasta chromosome.index position.index [...] > output.sorted.txt
+
+Options: -h       display this help message
+         -c       comment lines starting with "#"
+         -h       the first line is header
+         -a       append files instead of operning file writers
+
+EOF
+}
 my ($tableFile, $referenceFastaFile, $chromosomeIndex, @positionIndexList) = @ARGV;
 my $temporaryDirectory = $ENV{'TMPDIR'};
 $temporaryDirectory = '/tmp' unless($temporaryDirectory);
@@ -20,7 +33,7 @@ open(my $reader, $tableFile);
 while(my $line = <$reader>) {
 	chomp($line);
 	next if($line =~ /^#/ && (!$comment || (print "$line\n")));
-	next if($header && !($header = 0) && (print "$line\n"));
+	next if($header && !($header = '') && (print "$line\n"));
 	my @tokenList = split("\t", $line, -1);
 	my $chromosome = $tokenList[$chromosomeIndex];
 	$chromosome =~ s/[ |>;()\$].*$//;
