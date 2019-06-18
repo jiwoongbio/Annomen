@@ -42,7 +42,7 @@ lftp -c 'get ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene_info.gz'
 lftp -c 'get ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2refseq.gz'
 
 # Generate GTF file with gene names
-perl RefSeq.gtf.pl hg38_RefSeq.gtf.gz gene_info.gz gene2refseq.gz 10116 > hg38_RefSeq.gtf
+perl RefSeq.gtf.pl hg38_RefSeq.gtf.gz gene_info.gz gene2refseq.gz 9606 > hg38_RefSeq.gtf
 
 # Download RefSeq files from NCBI FTP
 lftp -c 'mirror -p -L ftp://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/mRNA_Prot refseq/H_sapiens/mRNA_Prot'
