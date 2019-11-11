@@ -383,7 +383,7 @@ sub needle {
 		open(my $reader, "$prefix.outfile");
 		while(my $line = <$reader>) {
 			chomp($line);
-			$identity = $1 / $2 if($line =~ /^# Identity: +([0-9]+)\/([0-9]+) \([.0-9]+%\)$/);
+			$identity = $1 / $2 if($line =~ /^# Identity: +([0-9]+)\/([0-9]+) \( *[0-9.]+%\)$/);
 			$alignA .= $1 if($line =~ /^seqA +[0-9]+ +([^ ]+) +[0-9]+$/);
 			$alignB .= $1 if($line =~ /^seqB +[0-9]+ +([^ ]+) +[0-9]+$/);
 		}
@@ -420,7 +420,7 @@ sub stretcher {
 		open(my $reader, "$prefix.outfile");
 		while(my $line = <$reader>) {
 			chomp($line);
-			$identity = $1 / $2 if($line =~ /^# Identity: +([0-9]+)\/([0-9]+) \([.0-9]+%\)$/);
+			$identity = $1 / $2 if($line =~ /^# Identity: +([0-9]+)\/([0-9]+) \( *[0-9.]+%\)$/);
 			$alignA .= $1 if($line =~ /^ *seqA (.+)$/);
 			$alignB .= $1 if($line =~ /^ *seqB (.+)$/);
 		}
