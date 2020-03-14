@@ -1,5 +1,5 @@
-# Author: Jiwoong Kim (jiwoongbio@gmail.com)
 #!/bin/bash
+# Author: Jiwoong Kim (jiwoongbio@gmail.com)
 
 # Requirements
 # 1. Perl: https://www.perl.org
@@ -9,40 +9,20 @@
 # 3. EMBOSS: http://emboss.sourceforge.net
 #    - needle
 #    - stretcher
-# 4. Basic linux commands: rm, gzip, awk, sort, echo, find
+# 4. Basic linux commands: bash, rm, gzip, sort, echo, find, sed, awk
 # 5. lftp: http://lftp.yar.ru
 
-# http://genome.ucsc.edu/cgi-bin/hgTables
-# - clade: Mammal
-# - genome: Human
-# - assembly: Dec. 2013 (GRCh38/hg38)
-# - group: Genes and Gene Predictions
-# - track: NCBI RefSeq
-# - table: RefSeq All (ncbiRefSeq)
-# - region: genome
-# - output format: GTF - gene transfer format (limited)
-# - output file: hg38_RefSeq.gtf.gz
-# - file type returned: gzip compressed
-# - get output
-
-if [ ! -f "hg38_RefSeq.gtf.gz" ]; then
-	echo "hg38_RefSeq.gtf.gz is not available." >&2
-	exit 1
-fi
-
 # Remove old files
-rm -rf hg38.fa.gz gene_info.gz gene2refseq.gz hg38_RefSeq.gtf refseq/H_sapiens/mRNA_Prot human.rna.fna human.protein.faa human.rna.gbff Annomen_table.txt Annomen_table.log
+rm -rf hg38.fa.gz refseq/H_sapiens/mRNA_Prot human.rna.fna human.protein.faa human.rna.gbff Annomen_table.txt Annomen_table.log
 
 # Prepare reference genome fasta file
-lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz'
-gzip -dc hg38.fa.gz > hg38.fasta
-
-# Download gene files from NCBI FTP
-lftp -c 'get ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene_info.gz'
-lftp -c 'get ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2refseq.gz'
-
-# Generate GTF file with gene names
-perl RefSeq.gtf.pl hg38_RefSeq.gtf.gz gene_info.gz gene2refseq.gz 9606 > hg38_RefSeq.gtf
+genomeFastaFile=`readlink -f ~/data/igenomes/Homo_sapiens/UCSC/hg38/Sequence/WholeGenomeFasta/genome.fa`
+if test -r $genomeFastaFile; then
+	ln -sf $genomeFastaFile hg38.fasta
+else 
+	lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz'
+	gzip -dc hg38.fa.gz > hg38.fasta
+fi
 
 # Download RefSeq files from NCBI FTP
 lftp -c 'mirror -p -L ftp://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/mRNA_Prot refseq/H_sapiens/mRNA_Prot'
@@ -52,5 +32,9 @@ for file in refseq/H_sapiens/mRNA_Prot/human.*.rna.fna.gz;     do gzip -dc $file
 for file in refseq/H_sapiens/mRNA_Prot/human.*.protein.faa.gz; do gzip -dc $file; done > human.protein.faa
 for file in refseq/H_sapiens/mRNA_Prot/human.*.rna.gbff.gz;    do gzip -dc $file; done | perl splitGenBank.pl - human.rna.gbff
 
+lftp -c 'mirror -p -L ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.39_GRCh38.p13'
+
+grep -v '^#' GCF_000001405.39_GRCh38.p13/GCF_000001405.39_GRCh38.p13_assembly_report.txt | cut -f7,10 | sed 's/\r$//' > chromosome.hg38.txt
+
 # Generate Annomen table
-perl Annomen_table.pl hg38_RefSeq.gtf hg38.fasta human.rna.fna human.protein.faa human.rna.gbff > Annomen_table.hg38.txt 2> Annomen_table.hg38.log
+perl Annomen_table.pl -c chromosome.hg38.txt GCF_000001405.39_GRCh38.p13/GCF_000001405.39_GRCh38.p13_genomic.gff.gz hg38.fasta human.rna.fna human.protein.faa human.rna.gbff > Annomen_table.hg38.txt 2> Annomen_table.hg38.log

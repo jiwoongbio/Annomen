@@ -40,7 +40,7 @@ Annotate variant nomenclature
 3. EMBOSS: http://emboss.sourceforge.net
    * needle
    * stretcher
-4. Basic linux commands: bash, gzip, sort, awk, sed, ...
+4. Basic linux commands: bash, rm, gzip, sort, echo, find, sed, awk
 5. lftp: http://lftp.yar.ru
 
 
@@ -55,27 +55,15 @@ git clone https://github.com/jiwoongbio/Annomen.git
 ## Usages
 
 1. Prepare annotation table file
-   1. Download GTF file from http://genome.ucsc.edu/cgi-bin/hgTables
-      * clade: Mammal
-      * genome: Human
-      * assembly: Feb. 2009 (GRCh37/hg19)
-      * group: Genes and Gene Predictions
-      * track: NCBI RefSeq
-      * table: RefSeq All (ncbiRefSeq)
-      * region: genome
-      * output format: GTF - gene transfer format (limited)
-      * output file: hg19_RefSeq.gtf.gz
-      * file type returned: gzip compressed
-      * get output
-   2. Execute **Annomen_table.hg19.sh**
+   * Execute **Annomen_table.hg38.sh**
       ```
-      ./Annomen_table.hg19.sh
+      ./Annomen_table.hg38.sh
       ```
 
 2. Annotate variant file in VCF or tab-separated columns of chromosome, position, reference base, variant base
-   * Execute **Annomen.hg19.sh**
+   * Execute **Annomen.hg38.sh**
      ```
-     ./Annomen.hg19.sh <input file>
+     ./Annomen.hg38.sh <input file>
      ```
    * **Example**: annotating ClinVar variants
      ```

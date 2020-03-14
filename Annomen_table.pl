@@ -3,46 +3,73 @@ use strict;
 use warnings;
 local $SIG{__WARN__} = sub { die $_[0] };
 
+use IPC::Open2;
 use Bio::DB::Fasta;
 use Bio::SeqIO;
-use Getopt::Long;
+use Getopt::Long qw(:config no_ignore_case);
 
 exit 1 if(map {(`which $_`) ? () : $_} ('needle', 'stretcher'));
 
+chomp(my $hostname = `hostname`);
+my $temporaryDirectory = $ENV{'TMPDIR'};
+$temporaryDirectory = '/tmp' unless($temporaryDirectory);
 my @codonList = ();
-GetOptions('c=s' => \@codonList);
-my ($gtfFile, $referenceFastaFile, $transcriptFastaFile, $proteinFastaFile, $gbDirectory) = @ARGV;
-my $db = Bio::DB::Fasta->new($referenceFastaFile);
-my %codonHash = (
-	'TTT' => 'F', 'CTT' => 'L', 'ATT' => 'I', 'GTT' => 'V',
-	'TTC' => 'F', 'CTC' => 'L', 'ATC' => 'I', 'GTC' => 'V',
-	'TTA' => 'L', 'CTA' => 'L', 'ATA' => 'I', 'GTA' => 'V',
-	'TTG' => 'L', 'CTG' => 'L', 'ATG' => 'M', 'GTG' => 'V',
-
-	'TCT' => 'S', 'CCT' => 'P', 'ACT' => 'T', 'GCT' => 'A',
-	'TCC' => 'S', 'CCC' => 'P', 'ACC' => 'T', 'GCC' => 'A',
-	'TCA' => 'S', 'CCA' => 'P', 'ACA' => 'T', 'GCA' => 'A',
-	'TCG' => 'S', 'CCG' => 'P', 'ACG' => 'T', 'GCG' => 'A',
-
-	'TAT' => 'Y', 'CAT' => 'H', 'AAT' => 'N', 'GAT' => 'D',
-	'TAC' => 'Y', 'CAC' => 'H', 'AAC' => 'N', 'GAC' => 'D',
-	'TAA' => '*', 'CAA' => 'Q', 'AAA' => 'K', 'GAA' => 'E',
-	'TAG' => '*', 'CAG' => 'Q', 'AAG' => 'K', 'GAG' => 'E',
-
-	'TGT' => 'C', 'CGT' => 'R', 'AGT' => 'S', 'GGT' => 'G',
-	'TGC' => 'C', 'CGC' => 'R', 'AGC' => 'S', 'GGC' => 'G',
-	'TGA' => '*', 'CGA' => 'R', 'AGA' => 'R', 'GGA' => 'G',
-	'TGG' => 'W', 'CGG' => 'R', 'AGG' => 'R', 'GGG' => 'G',
+GetOptions(
+	't=s' => \$temporaryDirectory,
+	'c=s' => \(my $chromosomeToChromosomeFile = ''),
+	'C=s' => \@codonList,
+	'T' => \(my $isTranscriptGenome = ''),
 );
-$codonHash{$_->[0]} = $_->[1] foreach(map {[split(/=/, $_)]} map {split(/,/, $_)} @codonList);
-sub translate {
-	my ($sequence) = @_;
-	return join('', map {defined($_) ? $_ : 'X'} map {$codonHash{substr($sequence, $_ * 3, 3)}} 0 .. (length($sequence) / 3) - 1);
+{
+	my %codonHash = (
+		'TTT' => 'F', 'CTT' => 'L', 'ATT' => 'I', 'GTT' => 'V',
+		'TTC' => 'F', 'CTC' => 'L', 'ATC' => 'I', 'GTC' => 'V',
+		'TTA' => 'L', 'CTA' => 'L', 'ATA' => 'I', 'GTA' => 'V',
+		'TTG' => 'L', 'CTG' => 'L', 'ATG' => 'M', 'GTG' => 'V',
+
+		'TCT' => 'S', 'CCT' => 'P', 'ACT' => 'T', 'GCT' => 'A',
+		'TCC' => 'S', 'CCC' => 'P', 'ACC' => 'T', 'GCC' => 'A',
+		'TCA' => 'S', 'CCA' => 'P', 'ACA' => 'T', 'GCA' => 'A',
+		'TCG' => 'S', 'CCG' => 'P', 'ACG' => 'T', 'GCG' => 'A',
+
+		'TAT' => 'Y', 'CAT' => 'H', 'AAT' => 'N', 'GAT' => 'D',
+		'TAC' => 'Y', 'CAC' => 'H', 'AAC' => 'N', 'GAC' => 'D',
+		'TAA' => '*', 'CAA' => 'Q', 'AAA' => 'K', 'GAA' => 'E',
+		'TAG' => '*', 'CAG' => 'Q', 'AAG' => 'K', 'GAG' => 'E',
+
+		'TGT' => 'C', 'CGT' => 'R', 'AGT' => 'S', 'GGT' => 'G',
+		'TGC' => 'C', 'CGC' => 'R', 'AGC' => 'S', 'GGC' => 'G',
+		'TGA' => '*', 'CGA' => 'R', 'AGA' => 'R', 'GGA' => 'G',
+		'TGG' => 'W', 'CGG' => 'R', 'AGG' => 'R', 'GGG' => 'G',
+	);
+	$codonHash{$_->[0]} = $_->[1] foreach(map {[split(/=/, $_)]} @codonList);
+
+	sub translate {
+		my ($sequence) = @_;
+		return join('', map {defined($_) ? $_ : 'X'} map {$codonHash{substr($sequence, $_ * 3, 3)}} 0 .. int(length($sequence) / 3) - 1);
+	}
+}
+my ($gffFile, $referenceFastaFile, $transcriptFastaFile, $proteinFastaFile, $gbDirectory) = @ARGV;
+my $db = Bio::DB::Fasta->new($referenceFastaFile);
+my @chromosomeList = getChromosomeList();
+my %chromosomeIndexHash = map {$chromosomeList[$_] => $_} 0 .. $#chromosomeList;
+if($chromosomeToChromosomeFile ne '') {
+	open(my $reader, ($chromosomeToChromosomeFile =~ /\.gz$/ ? "gzip -dc $chromosomeToChromosomeFile |" : $chromosomeToChromosomeFile));
+	while(my $line = <$reader>) {
+		chomp($line);
+		my @chromosomeList = split(/\t/, $line, -1);
+		if(scalar(my ($index) = grep {defined} @chromosomeIndexHash{@chromosomeList}) == 1) {
+			foreach my $chromosome (@chromosomeList) {
+				$chromosomeIndexHash{$chromosome} = $index unless(defined($chromosomeIndexHash{$chromosome}));
+			}
+		}
+	}
+	close($reader);
 }
 my %transcriptSequenceHash = ();
-{
+if(-r $transcriptFastaFile) {
 	my $transcriptId = '';
-	open(my $reader, ($transcriptFastaFile =~ /\.gz$/) ? "gzip -dc $transcriptFastaFile |" : $transcriptFastaFile);
+	open(my $reader, ($transcriptFastaFile =~ /\.gz$/ ? "gzip -dc $transcriptFastaFile |" : $transcriptFastaFile));
 	while(my $line = <$reader>) {
 		chomp($line);
 		next if($line =~ /^>(\S*)/ && ($transcriptId = $1));
@@ -51,9 +78,9 @@ my %transcriptSequenceHash = ();
 	close($reader);
 }
 my %proteinSequenceHash = ();
-{
+if(-r $proteinFastaFile) {
 	my $proteinId = '';
-	open(my $reader, ($proteinFastaFile =~ /\.gz$/) ? "gzip -dc $proteinFastaFile |" : $proteinFastaFile);
+	open(my $reader, ($proteinFastaFile =~ /\.gz$/ ? "gzip -dc $proteinFastaFile |" : $proteinFastaFile));
 	while(my $line = <$reader>) {
 		chomp($line);
 		next if($line =~ /^>(\S*)/ && ($proteinId = $1));
@@ -65,62 +92,148 @@ my %proteinSequenceHash = ();
 }
 my @columnList = ('chromosome', 'start', 'end', 'transcriptId', 'geneName', 'strand', 'region', 'number', 'startInTranscript', 'endInTranscript', 'mismatch', 'proteinId', 'codingStart', 'codingEnd', 'codingRegions', 'frame');
 print join("\t", @columnList), "\n";
-my @chromosomeList = getChromosomeList();
-foreach my $chromosome (@chromosomeList) {
-	my %transcriptGeneNameHash = ();
-	my %transcriptStrandHash = ();
-	my %transcriptExonStartEndListHash = ();
-
-	my %transcriptProteinHash = ();
-	my %transcriptCodingStartHash = ();
-	my %transcriptCodingEndHash = ();
-	my %transcriptFrameHash = ();
-
-	open(my $reader, "awk -F'\t' '(\$1 == \"$chromosome\")' $gtfFile | sort --field-separator='\t' -k4,4n -k5,5n |");
+my $pid = open2(my $reader, my $writer, "sort -t '\t' -k1,1n -k2,2n -k3,3n");
+{
+	open(my $reader, ($gffFile =~ /\.gz$/ ? "gzip -dc $gffFile | grep -v '^#' | LC_ALL=C sort -t '\t' -k1,1 -k4,4n -k5,5nr |" : "grep -v '^#' $gffFile | LC_ALL=C sort -t '\t' -k1,1 -k4,4n -k5,5nr |"));
+	my %tokenHashHash = ();
+	my @idList = ();
 	while(my $line = <$reader>) {
 		chomp($line);
 		next if($line =~ /^#/);
 		my %tokenHash = ();
-		@tokenHash{'chromosome', 'source', 'feature', 'start', 'end', 'score', 'strand', 'frame', 'attribute'} = split(/\t/, $line);
+		@tokenHash{'chromosome', 'source', 'feature', 'start', 'end', 'score', 'strand', 'frame', 'attribute'} = split(/\t/, $line, -1);
 		my %attributeHash = ();
-		$attributeHash{$1} = $2 while($tokenHash{'attribute'} =~ m/([^"; ]+) +"([^"]+)";/g);
-		if($tokenHash{'feature'} eq 'exon' || $tokenHash{'feature'} eq 'CDS') {
-			my $transcriptId = $attributeHash{'transcript_id'};
-			$transcriptGeneNameHash{$transcriptId} = $_ if(defined($_ = $attributeHash{'gene_name'}));
-			$transcriptStrandHash{$transcriptId} = $tokenHash{'strand'};
-			if($tokenHash{'feature'} eq 'exon') {
-				push(@{$transcriptExonStartEndListHash{$transcriptId}}, [@tokenHash{'start', 'end'}]);
-			}
-			$transcriptProteinHash{$transcriptId} = $_ if(defined($_ = $attributeHash{'protein_id'}));
-			if($tokenHash{'feature'} eq 'CDS') {
-				$transcriptCodingStartHash{$transcriptId} = $tokenHash{'start'} unless(defined($transcriptCodingStartHash{$transcriptId}));
-				$transcriptCodingEndHash{$transcriptId} = $tokenHash{'end'};
-				if($tokenHash{'strand'} eq '+') {
-					$transcriptFrameHash{$transcriptId} = $tokenHash{'frame'} unless(defined($transcriptFrameHash{$transcriptId}));
-				}
-				if($tokenHash{'strand'} eq '-') {
-					$transcriptFrameHash{$transcriptId} = $tokenHash{'frame'};
-				}
+		$attributeHash{$1} = $2 while($tokenHash{'attribute'} =~ m/([^;= ]+)=([^;]+)(;|$)/g);
+		$attributeHash{$1} = $2 while($tokenHash{'attribute'} =~ m/([^;" ]+) +"([^;"]+)"(;|$)/g);
+		$tokenHash{'attribute'} = \%attributeHash;
+		my @remainIdList = ();
+		foreach my $id (@idList) {
+			if($tokenHashHash{$id}->{'chromosome'} ne $tokenHash{'chromosome'} || (defined($tokenHashHash{$id}->{'end'}) && $tokenHashHash{$id}->{'end'} < $tokenHash{'start'})) {
+				printTable($tokenHashHash{$id});
+			} else {
+				push(@remainIdList, $id);
 			}
 		}
+		%tokenHashHash = map {$_ => $tokenHashHash{$_}} (@idList = @remainIdList) if(scalar(@remainIdList) < scalar(@idList));
+		if($tokenHash{'feature'} eq 'exon' || $tokenHash{'feature'} eq 'CDS') {
+			my $id = $tokenHash{'attribute'}->{'Parent'};
+			unless(defined($id)) {
+				$id = getAttributeValue(\%tokenHash, 'transcript_id', 'locus_tag');
+				unless(defined($tokenHashHash{$id})) {
+					$tokenHashHash{$id}->{'attribute'}->{'transcript_id'} = $id;
+					@{$tokenHashHash{$id}}{'chromosome', 'strand'} = @tokenHash{'chromosome', 'strand'};
+					push(@idList, $id);
+				}
+				unless(defined($tokenHashHash{$id}->{'attribute'}->{'gene_name'})) {
+					if(defined(my $value = getAttributeValue(\%tokenHash, 'gene_name', 'gene'))) {
+						$tokenHashHash{$id}->{'attribute'}->{'gene_name'} = $value;
+					}
+				}
+			}
+			if($tokenHash{'feature'} eq 'exon') {
+				push(@{$tokenHashHash{$id}->{'exonStartEndList'}}, [@tokenHash{'start', 'end'}]);
+			}
+			if($tokenHash{'feature'} eq 'CDS') {
+				push(@{$tokenHashHash{$id}->{'codingStartEndList'}}, [@tokenHash{'start', 'end'}]);
+				if($tokenHash{'strand'} eq '+') {
+					$tokenHashHash{$id}->{'frame'} = $tokenHash{'frame'} unless(defined($tokenHashHash{$id}->{'frame'}) && $tokenHashHash{$id}->{'frame'} ne '.');
+				}
+				if($tokenHash{'strand'} eq '-') {
+					$tokenHashHash{$id}->{'frame'} = $tokenHash{'frame'};
+				}
+				unless(defined($tokenHashHash{$id}->{'attribute'}->{'protein_id'})) {
+					if(defined(my $value = getAttributeValue(\%tokenHash, 'protein_id'))) {
+						$tokenHashHash{$id}->{'attribute'}->{'protein_id'} = $value;
+					}
+				}
+			}
+		} elsif(defined(my $id = $tokenHash{'attribute'}->{'ID'})) {
+			if(defined($tokenHashHash{$id})) {
+				$tokenHash{$_} = $tokenHashHash{$id}->{$_} foreach(grep {defined($tokenHashHash{$id}->{$_})} 'exonStartEndList', 'codingStartEndList', 'frame');
+				$tokenHash{'attribute'}->{$_} = $tokenHashHash{$id}->{'attribute'}->{$_} foreach(grep {defined($tokenHashHash{$id}->{'attribute'}->{$_})} 'protein_id');
+			}
+			$tokenHashHash{$id} = \%tokenHash;
+			push(@idList, $id);
+		}
 	}
-	close($reader);
-	open(my $writer, "| sort --field-separator='\t' -k2,2n -k3,3n");
-	foreach my $transcriptId (sort keys %transcriptExonStartEndListHash) {
-		printTable($writer, $chromosome, $transcriptId, $transcriptGeneNameHash{$transcriptId}, $transcriptStrandHash{$transcriptId}, $transcriptProteinHash{$transcriptId}, $transcriptCodingStartHash{$transcriptId}, $transcriptCodingEndHash{$transcriptId}, $transcriptFrameHash{$transcriptId}, @{$transcriptExonStartEndListHash{$transcriptId}});
+	{
+		foreach my $id (@idList) {
+			printTable($tokenHashHash{$id});
+		}
+		%tokenHashHash = ();
+		@idList = ();
+	}
+
+	sub getAttributeValue {
+		my ($tokenHash, @attributeList) = @_;
+		foreach my $attribute (@attributeList) {
+			if(defined(my $value = $tokenHash->{'attribute'}->{$attribute})) {
+				return $value;
+			}
+		}
+		foreach my $attribute (@attributeList) {
+			if(defined(my $parent = $tokenHash->{'attribute'}->{'Parent'})) {
+				return getAttributeValue($tokenHashHash{$parent}, @attributeList);
+			}
+		}
+		return undef;
+	}
+}
+close($writer);
+{
+	while(my $line = <$reader>) {
+		chomp($line);
+		my %tokenHash = ();
+		@tokenHash{@columnList} = split(/\t/, $line, -1);
+		$tokenHash{'chromosome'} = $chromosomeList[$tokenHash{'chromosome'}];
+		print join("\t", @tokenHash{@columnList}), "\n";
+	}
+}
+close($reader);
+waitpid($pid, 0);
+unless(-r $transcriptFastaFile) {
+	open(my $writer, ($transcriptFastaFile =~ /\.gz$/ ? "| gzip > $transcriptFastaFile" : "> $transcriptFastaFile"));
+	foreach my $transcriptId (sort keys %transcriptSequenceHash) {
+		my $transcriptSequence = $transcriptSequenceHash{$transcriptId};
+		print $writer ">$transcriptId\n";
+		for(my $index = 0; $index < length($transcriptSequence); $index += 80) {
+			print $writer substr($transcriptSequence, $index, 80), "\n";
+		}
+	}
+	close($writer);
+}
+unless(-r $proteinFastaFile) {
+	open(my $writer, ($proteinFastaFile =~ /\.gz$/ ? "| gzip > $proteinFastaFile" : "> $proteinFastaFile"));
+	foreach my $proteinId (sort keys %proteinSequenceHash) {
+		my $proteinSequence = $proteinSequenceHash{$proteinId};
+		print $writer ">$proteinId\n";
+		for(my $index = 0; $index < length($proteinSequence); $index += 80) {
+			print $writer substr($proteinSequence, $index, 80), "\n";
+		}
 	}
 	close($writer);
 }
 
 sub printTable {
-	my ($writer, $chromosome, $transcriptId, $geneName, $strand, $proteinId, $codingStart, $codingEnd, $frame, @exonStartEndList) = @_;
-	$transcriptId =~ s/_dup[0-9]+$//;
-	my $exonCount = scalar(@exonStartEndList);
+	my ($tokenHash) = @_;
+	return unless(defined($tokenHash->{'exonStartEndList'}) || defined($tokenHash->{'codingStartEndList'}));
+	unless(defined($tokenHash->{'exonStartEndList'})) {
+		$tokenHash->{'exonStartEndList'} = [map {[@$_]} @{$tokenHash->{'codingStartEndList'}}];
+	}
+	if($isTranscriptGenome) {
+		$tokenHash->{'exonStartEndList'}->[0]->[0] = 1;
+		$tokenHash->{'exonStartEndList'}->[-1]->[1] = $db->length($tokenHash->{'chromosome'});
+	}
+	my ($chromosome, $strand) = @$tokenHash{'chromosome', 'strand'};
+	return unless(defined(my $chromosomeIndex = $chromosomeIndexHash{$chromosome}));
+	my ($transcriptId, $geneName, $proteinId) = (getAttributeValue($tokenHash, 'transcript_id', 'locus_tag'), getAttributeValue($tokenHash, 'gene_name', 'gene'), getAttributeValue($tokenHash, 'protein_id'));
+	return unless(defined($transcriptId));
+	my $exonCount = scalar(my @exonStartEndList = @{$tokenHash->{'exonStartEndList'}});
 	my $exonSequence = '';
 	my @exonPositionList = ();
 	foreach(@exonStartEndList) {
 		my ($exonStart, $exonEnd) = @$_;
-		$exonSequence .= $db->seq($chromosome, $exonStart, $exonEnd);
+		$exonSequence .= $db->seq($chromosomeList[$chromosomeIndex], $exonStart, $exonEnd);
 		push(@exonPositionList, $exonStart .. $exonEnd);
 	}
 	$exonSequence =~ tr/a-z/A-Z/;
@@ -148,17 +261,20 @@ sub printTable {
 	}
 	foreach my $seq_object (@seq_objectList) {
 		my $transcriptSequence = $transcriptSequenceHash{$transcriptId};
+		unless(defined($transcriptSequence)) {
+			if(-r $transcriptFastaFile) {
+				print STDERR join("\t", $transcriptId, 'no transcript sequence'), "\n";
+				next;
+			} else {
+				$transcriptSequence = $transcriptSequenceHash{$transcriptId} = $exonSequence;
+			}
+		}
 		if($seq_object) {
 			$transcriptId = join('.', $seq_object->display_id, $seq_object->version);
-			$transcriptSequence = $seq_object->seq;
-		}
-		unless(defined($transcriptSequenceHash{$transcriptId})) {
-			print STDERR join("\t", $transcriptId, 'no transcript sequence'), "\n";
-			next;
-		}
-		if($transcriptSequenceHash{$transcriptId} ne $transcriptSequence) {
-			print STDERR join("\t", $transcriptId, 'different transcript sequences', $transcriptSequenceHash{$transcriptId}, $transcriptSequence), "\n";
-			next;
+			if($transcriptSequence ne $seq_object->seq) {
+				print STDERR join("\t", $transcriptId, 'different transcript sequences', $transcriptSequence, $seq_object->seq), "\n";
+				next;
+			}
 		}
 		my ($exonAlignment, $transcriptAlignment, $identity) = ($exonSequence, $transcriptSequence, 1);
 		if($exonAlignment ne $transcriptAlignment) {
@@ -171,8 +287,8 @@ sub printTable {
 				$transcriptAlignment = ('-' x index($exonAlignment, $transcriptAlignment)) . $transcriptAlignment;
 				$transcriptAlignment .= '-' x (length($exonAlignment) - length($transcriptAlignment));
 			} else {
-				($exonAlignment, $transcriptAlignment, $identity) = needle($exonSequence, $transcriptSequence, 20, 0);
-				($exonAlignment, $transcriptAlignment, $identity) = stretcher($exonSequence, $transcriptSequence, 20, 0) if($identity == 0);
+				($exonAlignment, $transcriptAlignment, $identity) = needle($exonSequence, $transcriptSequence, 'EDNAFULL', 20, 0);
+				($exonAlignment, $transcriptAlignment, $identity) = stretcher($exonSequence, $transcriptSequence, 'EDNAFULL', 20, 0) if($identity eq '');
 				$exonAlignment =~ s/-+$//;
 				if(length($exonAlignment) < length($transcriptAlignment)) {
 					$exonAlignment .= '-' x length($1) if(substr($transcriptAlignment, length($exonAlignment)) =~ /^(.*[^A])A*$/);
@@ -221,17 +337,6 @@ sub printTable {
 		if($seq_object) {
 			foreach my $feat_object (grep {$_->primary_tag eq 'CDS'} $seq_object->get_SeqFeatures) {
 				my ($proteinId) = $feat_object->get_tag_values('protein_id');
-				my ($proteinSequence) = $feat_object->get_tag_values('translation');
-				$proteinSequence =~ s/U/*/g;
-				$proteinSequence =~ s/\*?$/*/;
-				unless(defined($proteinSequenceHash{$proteinId})) {
-					print STDERR join("\t", $transcriptId, $proteinId, 'no protein sequence'), "\n";
-					next;
-				}
-				if($proteinSequenceHash{$proteinId} ne $proteinSequence) {
-					print STDERR join("\t", $transcriptId, $proteinId, 'different protein sequences', $proteinSequenceHash{$proteinId}, $proteinSequence), "\n";
-					next;
-				}
 				my ($codonStart) = $feat_object->get_tag_values('codon_start');
 				my $codingRegions = join(',', map {join('..', $_->start, $_->end)} $feat_object->location->each_Location);
 				if($codingRegions =~ s/([0-9]+)$//) {
@@ -247,12 +352,8 @@ sub printTable {
 				push(@cdsList, [$proteinId, @codingExonPositionList[0, -1], $codingRegions, $frame]);
 			}
 		} else {
-			if(defined($proteinId) && defined($codingStart) && defined($codingEnd)) {
-				unless(defined($proteinSequenceHash{$proteinId})) {
-					print STDERR join("\t", $transcriptId, $proteinId, 'no protein sequence'), "\n";
-					next;
-				}
-				my $codingRegions = join('..', sort {$a <=> $b} @exon2transcriptPositionHash{$codingStart, $codingEnd});
+			if(defined($proteinId)) {
+				my $codingRegions = join('..', sort {$a <=> $b} @exon2transcriptPositionHash{$tokenHash->{'codingStartEndList'}->[0]->[0], $tokenHash->{'codingStartEndList'}->[-1]->[1]});
 				if($codingRegions =~ s/([0-9]+)$//) {
 					if(translate(substr($transcriptSequence, $1 - 3, 3)) ne '*' && translate(substr($transcriptSequence, $1, 3)) eq '*') {
 						$codingRegions .= $1 + 3;
@@ -262,14 +363,23 @@ sub printTable {
 				}
 				my @codingTranscriptPositionList = eval($codingRegions);
 				my @codingExonPositionList = sort {$a <=> $b} grep {defined} @transcript2exonPositionHash{@codingTranscriptPositionList};
+				my $frame = $tokenHash->{'frame'};
 				push(@cdsList, [$proteinId, @codingExonPositionList[0, -1], $codingRegions, $frame]);
 			}
 		}
 		foreach my $cds (@cdsList) {
 			my ($proteinId, $codingStart, $codingEnd, $codingRegions, $frame) = @$cds;
-			my $proteinSequence = $proteinSequenceHash{$proteinId};
-			my $codingSequence = join('', map {substr($transcriptSequence, $_->[0] - 1, $_->[-1] - ($_->[0] - 1))} map {[split(/\.\./, $_)]} split(/,/, $codingRegions));
+			my $codingSequence = join('', map {substr($transcriptSequence, $_->[0] - 1, $_->[-1] - ($_->[0] - 1))} map {[split(/\.\./, $_, 2)]} split(/,/, $codingRegions));
 			my $translateSequence = translate(substr($codingSequence, $frame));
+			my $proteinSequence = $proteinSequenceHash{$proteinId};
+			unless(defined($proteinSequence)) {
+				if(-r $proteinFastaFile) {
+					print STDERR join("\t", $transcriptId, $proteinId, 'no protein sequence'), "\n";
+					next;
+				} else {
+					$proteinSequence = $proteinSequenceHash{$proteinId} = $translateSequence;
+				}
+			}
 			if($frame > 0 && $proteinSequence =~ /^X$translateSequence/) {
 				$translateSequence = "X$translateSequence";
 				$cds->[4] = $frame = $frame - 3;
@@ -278,7 +388,7 @@ sub printTable {
 				for(my $index = 0; $index < length($proteinSequence) || $index < length($proteinSequence); $index++) {
 					my $proteinAA = $index < length($proteinSequence) ? substr($proteinSequence, $index, 1) : '';
 					my $translateAA = $index < length($translateSequence) ? substr($translateSequence, $index, 1) : '';
-					print STDERR join("\t", $transcriptId, $proteinId, 'different amino acids', $index + 1, $translateAA, $proteinAA), "\n" if($translateAA ne $proteinAA);
+					print STDERR join("\t", $transcriptId, $proteinId, 'different amino acids', $index + 1, $proteinAA, $translateAA), "\n" if($translateAA ne $proteinAA);
 				}
 			}
 		}
@@ -289,7 +399,7 @@ sub printTable {
 			next if(!defined($exon2transcriptPositionHash{$start}));
 			next if(!defined($exon2transcriptPositionHash{$end}));
 			my %tokenHash = ();
-			@tokenHash{'chromosome', 'start', 'end', 'transcriptId', 'geneName', 'strand', 'region', 'number'} = ($chromosome, $start, $end, $transcriptId, $geneName, $strand, $region, $number);
+			@tokenHash{'chromosome', 'start', 'end', 'transcriptId', 'geneName', 'strand', 'region', 'number'} = ($chromosomeIndex, $start, $end, $transcriptId, $geneName, $strand, $region, $number);
 			@tokenHash{'startInTranscript', 'endInTranscript'} = sort {$a <=> $b} @exon2transcriptPositionHash{$start, $end};
 			if(my @includedMismatchList = grep {!($_->[0] == $start && $_->[1] eq '')} grep {$start <= $_->[0] && $_->[0] <= $end} @mismatchList) {
 				my @indexList = grep {abs($includedMismatchList[$_]->[3] - $includedMismatchList[$_ - 1]->[3]) > 1} 1 .. $#includedMismatchList;
@@ -314,7 +424,7 @@ sub printTable {
 			next if(!defined($exon2transcriptPositionHash{$start - 1}));
 			next if(!defined($exon2transcriptPositionHash{$end + 1}));
 			my %tokenHash = ();
-			@tokenHash{'chromosome', 'start', 'end', 'transcriptId', 'geneName', 'strand', 'region', 'number'} = ($chromosome, $start, $end, $transcriptId, $geneName, $strand, $region, $number);
+			@tokenHash{'chromosome', 'start', 'end', 'transcriptId', 'geneName', 'strand', 'region', 'number'} = ($chromosomeIndex, $start, $end, $transcriptId, $geneName, $strand, $region, $number);
 			@tokenHash{'startInTranscript', 'endInTranscript'} = sort {$a <=> $b} @exon2transcriptPositionHash{$start - 1, $end + 1};
 			if(@cdsList) {
 				foreach(@cdsList) {
@@ -357,12 +467,10 @@ sub rightalignGaps {
 }
 
 sub needle {
-	my ($seqA, $seqB, $gapOpen, $gapExtend) = @_;
+	my ($seqA, $seqB, $datafile, $gapOpen, $gapExtend) = @_;
 	$gapOpen = '' unless(defined($gapOpen));
 	$gapExtend = '' unless(defined($gapExtend));
-	my $temporaryDirectory = $ENV{'TMPDIR'};
-	$temporaryDirectory = '/tmp' unless($temporaryDirectory);
-	my $prefix = "$temporaryDirectory/$$.needle";
+	my $prefix = "$temporaryDirectory/needle.$hostname.$$";
 	system("rm -fr $prefix.*");
 	{
 		open(my $writer, "> $prefix.asequence");
@@ -376,9 +484,9 @@ sub needle {
 		print $writer "$seqB\n";
 		close($writer);
 	}
-	print STDERR `bash -c "echo -en '$gapOpen\\n$gapExtend\\n'" | timeout 600 needle -asequence $prefix.asequence -bsequence $prefix.bsequence -outfile $prefix.outfile -datafile EDNAFULL`;
+	print STDERR `echo -en '$gapOpen\\n$gapExtend\\n' | timeout 600 needle -asequence $prefix.asequence -bsequence $prefix.bsequence -outfile $prefix.outfile -datafile $datafile`;
 	print STDERR "\n";
-	my ($alignA, $alignB, $identity) = ('', '', 0);
+	my ($alignA, $alignB, $identity) = ('', '', '');
 	if(-e "$prefix.outfile") {
 		open(my $reader, "$prefix.outfile");
 		while(my $line = <$reader>) {
@@ -394,12 +502,10 @@ sub needle {
 }
 
 sub stretcher {
-	my ($seqA, $seqB, $gapOpen, $gapExtend) = @_;
-	$gapOpen = defined($gapOpen) ? "-gapopen $gapOpen" : '';
-	$gapExtend = defined($gapExtend) ? "-gapextend $gapExtend" : '';
-	my $temporaryDirectory = $ENV{'TMPDIR'};
-	$temporaryDirectory = '/tmp' unless($temporaryDirectory);
-	my $prefix = "$temporaryDirectory/$$.stretcher";
+	my ($seqA, $seqB, $datafile, $gapOpen, $gapExtend) = @_;
+	$gapOpen = defined($gapOpen) && $gapOpen ne '' ? "-gapopen $gapOpen" : '';
+	$gapExtend = defined($gapExtend) && $gapExtend ne '' ? "-gapextend $gapExtend" : '';
+	my $prefix = "$temporaryDirectory/stretcher.$hostname.$$";
 	system("rm -fr $prefix.*");
 	{
 		open(my $writer, "> $prefix.asequence");
@@ -413,9 +519,9 @@ sub stretcher {
 		print $writer "$seqB\n";
 		close($writer);
 	}
-	print STDERR `timeout 600 stretcher -asequence $prefix.asequence -bsequence $prefix.bsequence -outfile $prefix.outfile -datafile EDNAFULL $gapOpen $gapExtend`;
+	print STDERR `timeout 600 stretcher -asequence $prefix.asequence -bsequence $prefix.bsequence -outfile $prefix.outfile -datafile $datafile $gapOpen $gapExtend`;
 	print STDERR "\n";
-	my ($alignA, $alignB, $identity) = ('', '', 0);
+	my ($alignA, $alignB, $identity) = ('', '', '');
 	if(-e "$prefix.outfile") {
 		open(my $reader, "$prefix.outfile");
 		while(my $line = <$reader>) {
@@ -437,7 +543,7 @@ sub getChromosomeList {
 		open(my $reader, $faiFile);
 		while(my $line = <$reader>) {
 			chomp($line);
-			my @tokenList = split(/\t/, $line);
+			my @tokenList = split(/\t/, $line, -1);
 			push(@chromosomeList, $tokenList[0]);
 		}
 		close($reader);

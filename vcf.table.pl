@@ -3,82 +3,287 @@ use strict;
 use warnings;
 local $SIG{__WARN__} = sub { die $_[0] };
 
-use List::Util qw(sum min max reduce);
-use Getopt::Long;
+use IPC::Open2;
+use List::Util qw(all sum min max reduce);
+use Getopt::Long qw(:config no_ignore_case);
 
-GetOptions('p' => \(my $pass = 0));
-my ($vcfFile, @columnList) = @ARGV;
-@columnList = map {split(/,/, $_)} @columnList;
-my @titleList = sort map {$_->[0]} grep {scalar(@$_) > 1} map {[split(/\./, $_)]} grep {$_ !~ /^(.*)\((.*)\)$/} @columnList;
-@titleList = @titleList[0, grep {$titleList[$_ - 1] ne $titleList[$_]} 1 .. $#titleList] if(@titleList);
-my $headerLine = "CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
-my @sampleList = ();
-open(my $reader, $vcfFile);
-while(my $line = <$reader>) {
-	chomp($line);
-	next if($line =~ s/^#$headerLine\t// && (@sampleList = split(/\t/, $line)));
-	next if($line =~ /^#/);
-	my %tokenHash = ();
-	(@tokenHash{split(/\t/, $headerLine)}, my @genotypeList) = map {$_ eq '.' ? '' : $_} split(/\t/, $line);
-	next if($pass == 0 && $tokenHash{'FILTER'} ne 'PASS');
-	my @tokenHashList = ();
-	for(my $index = 0; $index < scalar(@sampleList); $index++) {
-		$tokenHashList[$index] = {'SAMPLE' => $sampleList[$index]};
-		@{$tokenHashList[$index]}{split(':', $tokenHash{'FORMAT'})} = split(':', $genotypeList[$index]);
-	}
-	next if($pass == 0 && grep {defined($_->{'GT'}) && $_->{'GT'} eq './.'} @tokenHashList);
-	my %tokenHashListHash = ();
-	foreach my $keyValue (split(';', $tokenHash{'INFO'})) {
-		if($keyValue =~ /^([^=]*)=(.*)$/) {
-			my ($key, $value) = ($1, $2);
-			if($key =~ /^([^.]*)\.(.*)$/) {
-				my ($title, $index) = ($1, 0);
-				($key, $index) = ($1, $2 - 1) if($key =~ /^(.*)_([0-9]+)$/);
-				$tokenHashListHash{$title}->[$index]->{$key} = $value;
-			} else {
-				$tokenHash{$key} = $value;
-			}
-		} else {
-			$tokenHash{$keyValue} = $keyValue unless(defined($tokenHash{$keyValue}));
-		}
-	}
-	foreach my $column (@columnList) {
-		if($column =~ /^(.*)\((.*)\)$/) {
-			my ($function, $column1) = ($1, $2);
-			if($column1 =~ /^(.*)\.(.*)=(.*)\.(.*);(.*)$/) {
-				my ($title1, $column1, $title2, $column2, $column3) = ($1, "$1.$2", $3, "$3.$4", "$3.$5");
-				next unless(defined($tokenHashListHash{$title1}));
-				next unless(defined($tokenHashListHash{$title2}));
-				my %valueHash = ();
-				foreach(grep {defined($_->{$column2})} @{$tokenHashListHash{$title2}}) {
-					push(@{$valueHash{$_->{$column2}}}, $_->{$column3});
-				}
-				foreach(keys %valueHash) {
-					$valueHash{$_} = executeFunction($function, grep {defined} @{$valueHash{$_}});
-				}
-				foreach(grep {defined($_->{$column1})} @{$tokenHashListHash{$title1}}) {
-					$_->{$column} = $valueHash{$_->{$column1}};
-				}
-			} elsif($column1 =~ /^(.*)\.(.*)$/) {
-				my ($title1, $column1) = ($1, "$1.$2");
-				next unless(defined($tokenHashListHash{$title1}));
-				$tokenHash{$column} = executeFunction($function, grep {defined} map {$_->{$column1}} @{$tokenHashListHash{$title1}});
-			}
-		}
-	}
-	open(my $writer, "| sort -u");
-	printLines($writer, \%tokenHashListHash, \@tokenHashList, \%tokenHash, 0);
-	close($writer);
+chomp(my $hostname = `hostname`);
+my $temporaryDirectory = $ENV{'TMPDIR'};
+$temporaryDirectory = '/tmp' unless($temporaryDirectory);
+GetOptions(
+	'h' => \(my $help = ''),
+	't=s' => \$temporaryDirectory,
+	'p=i' => \(my $threads = 1),
+	'numberPerThread=i' => \(my $numberPerThread = 10000),
+	'c=s' => \(my $columnNameFile = ''),
+	'P' => \(my $passFilter = ''),
+	'I' => \(my $doNotParseInfoField = ''),
+	'G' => \(my $doNotParseGenotypeField = ''),
+	'S' => \(my $doNotPrintSingleGenotypeVariant = ''),
+	'Z' => \(my $doNotPrintHomozygousReferenceGenotype = ''),
+	'V' => \(my $doNotPrintUnmatchedVariant = ''),
+	'C' => \(my $doNotPrintCommonVariant = ''),
+	'U' => \(my $doNotUnphaseGenotype = ''),
+);
+if($help || scalar(@ARGV) == 0) {
+	die <<EOF;
+
+Usage:   perl vcf.table.pl [options] input.vcf column=name [...]
+
+Options: -h       display this help message
+         -t DIR   temporary directory [$temporaryDirectory]
+         -p INT   threads [$threads]
+         -c FILE  column name file
+         -P       pass filter
+         -I       do not parse INFO field
+         -G       do not parse Genotype field
+         -S       do not print single genotype variant
+         -Z       do not print homozygous reference genotype
+         -V       do not print unmatched variant
+         -C       do not print common variant
+         -U       do not unphase genotype
+
+EOF
 }
-close($reader);
+{
+	my $parentPid = $$;
+	my %pidHash = ();
+	my $writer;
+	my $parentWriter;
+	sub forkPrintParentWriter {
+		($parentWriter) = @_;
+	}
+	sub forkPrintSubroutine {
+		my ($subroutine, @arguments) = @_;
+		if(my $pid = fork()) {
+			$pidHash{$pid} = 1;
+		} else {
+			open($writer, "> $temporaryDirectory/fork.$hostname.$parentPid.$$");
+			$subroutine->(@arguments);
+			close($writer);
+			exit(0);
+		}
+		forkPrintWait($threads);
+	}
+	sub forkPrintWait {
+		my ($number) = (@_, 1);
+		while(scalar(keys %pidHash) >= $number) {
+			my $pid = wait();
+			if($pidHash{$pid}) {
+				open(my $reader, "$temporaryDirectory/fork.$hostname.$parentPid.$pid");
+				if(defined($parentWriter)) {
+					print $parentWriter $_ while(<$reader>);
+				} else {
+					print $_ while(<$reader>);
+				}
+				close($reader);
+				system("rm $temporaryDirectory/fork.$hostname.$parentPid.$pid");
+				delete $pidHash{$pid};
+			}
+		}
+	}
+	sub forkPrint {
+		if(defined($writer)) {
+			print $writer @_;
+		} elsif(defined($parentWriter)) {
+			print $parentWriter @_;
+		} else {
+			print @_;
+		}
+	}
+}
+my ($vcfFile, @columnNameList) = @ARGV;
+if(@columnNameList) {
+	@columnNameList = map {[split(/=/, $_, 2)]} @columnNameList;
+} elsif($columnNameFile ne '') {
+	open(my $reader, $columnNameFile);
+	while(my $line = <$reader>) {
+		chomp($line);
+		next if($line =~ /^#/);
+		my @tokenList = split(/\t/, $line, -1);
+		push(@columnNameList, [$tokenList[0], @tokenList[1 .. $#tokenList]]);
+	}
+	close($reader);
+}
+my @columnList = map {$_->[0]} @columnNameList;
+my @sampleColumnList = ();
+my @functionColumnList = ();
+my @titleList = ();
+foreach my $column (@columnList) {
+	if($column =~ /^SAMPLE\.(.*)$/) {
+		push(@sampleColumnList, $1);
+	} elsif($column =~ /^(.*)\((.*)\)$/) {
+		push(@functionColumnList, $column);
+	} elsif($column =~ /^([^.]*)\.(.*)$/) {
+		push(@titleList, $1);
+	}
+}
+@titleList = unique(@titleList) if(@titleList);
+my @sampleList = ();
+{
+	open(my $reader, ($vcfFile =~ /\.gz$/ ? "gzip -dc $vcfFile |" : $vcfFile));
+	my @lineList = ();
+	while(my $line = <$reader>) {
+		chomp($line);
+		if($line =~ s/^#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO//) {
+			if($line =~ s/^\tFORMAT\t//) {
+				@sampleList = split(/\t/, $line, -1);
+				if($doNotParseGenotypeField eq '') {
+					foreach my $index (0 .. $#columnNameList) {
+						if($columnNameList[$index]->[0] =~ /^SAMPLE\.(.*)$/) {
+							if(defined($columnNameList[$index]->[1])) {
+								$columnNameList[$index]->[1] = join("\t", map {"$_ $columnNameList[$index]->[1]"} @sampleList);
+							} else {
+								$columnNameList[$index]->[1] = join("\t", map {"$_.$1"} @sampleList);
+							}
+						}
+					}
+				}
+			}
+			print '#', join("\t", map {$_->[-1]} @columnNameList), "\n";
+			next;
+		}
+		next if($line =~ /^#/);
+		push(@lineList, $line);
+		if(scalar(@lineList) >= $numberPerThread) {
+			if($threads == 1) {
+				printTable(@lineList);
+			} else {
+				forkPrintSubroutine(\&printTable, @lineList);
+			}
+			@lineList = ();
+		}
+	}
+	if(@lineList) {
+		if($threads == 1) {
+			printTable(@lineList);
+		} else {
+			forkPrintSubroutine(\&printTable, @lineList);
+		}
+		@lineList = ();
+	}
+	forkPrintWait();
+	close($reader);
+}
+
+sub printTable {
+	foreach my $line (@_) {
+		my %tokenHash = ();
+		(@tokenHash{'CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT'}, my @genotypeList) = map {$_ eq '.' ? '' : $_} split(/\t/, $line, -1);
+		next if($passFilter eq '' && $tokenHash{'FILTER'} ne 'PASS');
+		my $altBase = $tokenHash{'ALT'};
+		my @altBaseList = $altBase eq '' ? ('') : split(/,/, $altBase, -1);
+		my @titleTokenHashListHashList = ();
+		if($doNotParseInfoField eq '') {
+			my %titleTokenHashListHash = ();
+			foreach my $columnValue (split(';', $tokenHash{'INFO'})) {
+				if($columnValue =~ /^([^=]*)=(.*)$/) {
+					my ($column, $value) = ($1, $2);
+					if($column =~ /^([^.]*)\.(.*)$/) {
+						my ($title, $index) = ($1, 0);
+						($column, $index) = ($1, $2 - 1) if($column =~ /^(.*)_([0-9]+)$/);
+						$titleTokenHashListHash{$title}->[$index]->{$column} = $value;
+					} else {
+						$tokenHash{$column} = $value;
+					}
+				} else {
+					$tokenHash{$columnValue} = $columnValue unless(defined($tokenHash{$columnValue}));
+				}
+			}
+			if(scalar(@altBaseList) > 1) {
+				foreach my $altBaseIndex (0 .. $#altBaseList) {
+					foreach my $title (keys %titleTokenHashListHash) {
+						$titleTokenHashListHashList[$altBaseIndex]->{$title} = [grep {!defined($_->{"$title.allele"}) || $_->{"$title.allele"} == $altBaseIndex + 1} @{$titleTokenHashListHash{$title}}];
+					}
+				}
+			} else {
+				push(@titleTokenHashListHashList, \%titleTokenHashListHash);
+			}
+		}
+		my @tokenHashList = ();
+		if(defined($tokenHash{'FORMAT'}) && $doNotParseGenotypeField eq '') {
+			my @formatList = split(/:/, $tokenHash{'FORMAT'}, -1);
+			for(my $index = 0; $index < scalar(@sampleList); $index++) {
+				$tokenHashList[$index]->{'SAMPLE'} = $sampleList[$index];
+				@{$tokenHashList[$index]}{@formatList} = split(/:/, $genotypeList[$index], -1);
+			}
+		}
+		if($doNotPrintSingleGenotypeVariant) {
+			my %genotypeHash = ();
+			$genotypeHash{$_} = 1 foreach(map {unphaseGenotype($_->{'GT'})} @tokenHashList);
+			next if(scalar(keys %genotypeHash) == 1);
+		}
+		if($doNotPrintHomozygousReferenceGenotype) {
+			@tokenHashList = grep {!isHomozygousReferenceGenotype($_->{'GT'})} @tokenHashList;
+			next if(scalar(@tokenHashList) == 0);
+		}
+		if($doNotUnphaseGenotype eq '') {
+			$_->{'GT'} = unphaseGenotype($_->{'GT'}) foreach(@tokenHashList);
+		}
+		foreach my $column (@sampleColumnList) {
+			my %sampleValueHash = map {$_->{'SAMPLE'} => $_->{$column}} @tokenHashList;
+			$tokenHash{"SAMPLE.$column"} = join("\t", map {defined($_) ? $_ : ''} @sampleValueHash{@sampleList});
+		}
+		foreach my $altBaseIndex (0 .. $#altBaseList) {
+			my %titleTokenHashListHash = ();
+			if(@titleTokenHashListHashList) {
+				%titleTokenHashListHash = %{$titleTokenHashListHashList[$altBaseIndex]};
+				foreach my $column (@functionColumnList) {
+					if($column =~ /^(.*)\((.*)\)$/) {
+						my ($function, $column1) = ($1, $2);
+						if($column1 =~ /^(.*)\.(.*)=(.*)\.(.*);(.*)$/) {
+							my ($title1, $column1, $title2, $column2, $column3) = ($1, "$1.$2", $3, "$3.$4", "$3.$5");
+							if(defined(my $tokenHashList1 = $titleTokenHashListHash{$title1})) {
+								if(defined(my $tokenHashList2 = $titleTokenHashListHash{$title2})) {
+									my %tokenHash = ();
+									foreach(grep {defined($_->{$column2}) && defined($_->{$column3})} @$tokenHashList2) {
+										push(@{$tokenHash{$_->{$column2}}}, $_->{$column3});
+									}
+									foreach(keys %tokenHash) {
+										$tokenHash{$_} = executeFunction($function, @{$tokenHash{$_}});
+									}
+									foreach(grep {defined($_->{$column1})} @$tokenHashList1) {
+										$_->{$column} = $tokenHash{$_->{$column1}};
+									}
+								}
+							}
+						} elsif($column1 =~ /^(.*)\.(.*)$/) {
+							my ($title1, $column1) = ($1, "$1.$2");
+							if(defined(my $tokenHashList1 = $titleTokenHashListHash{$title1})) {
+								$tokenHash{$column} = executeFunction($function, grep {defined($_)} map {$_->{$column1}} @$tokenHashList1);
+							} else {
+								$tokenHash{$column} = '';
+							}
+						}
+					}
+				}
+			}
+			if(scalar(@altBaseList) > 1) {
+				$tokenHash{'ALT'} = join(',', map {$_ == $altBaseIndex ? "[$altBaseList[$_]]" : $altBaseList[$_]} 0 .. $#altBaseList);
+			}
+			my $pid = open2(my $reader, my $writer, 'sort -u');
+			if($doNotPrintUnmatchedVariant || $doNotPrintCommonVariant) {
+				my @matchedTokenHashList = grep {grep {$_ == $altBaseIndex + 1} split(/[\/|]/, $_->{'GT'})} @tokenHashList;
+				next if($doNotPrintCommonVariant && scalar(@matchedTokenHashList) == scalar(@tokenHashList));
+				printLines($writer, \%titleTokenHashListHash, \@matchedTokenHashList, \%tokenHash, 0) if(@matchedTokenHashList);
+			} else {
+				printLines($writer, \%titleTokenHashListHash, \@tokenHashList, \%tokenHash, 0);
+			}
+			close($writer);
+			forkPrint($_) while(<$reader>);
+			close($reader);
+			waitpid($pid, 0);
+		}
+	}
+}
 
 sub printLines {
-	my ($writer, $tokenHashListHash, $tokenHashList, $tokenHash, $index) = @_;
-	if($index < scalar(@titleList)) {
-		if(defined($tokenHashListHash->{$titleList[$index]})) {
-			printLines($writer, $tokenHashListHash, $tokenHashList, {%$tokenHash, %$_}, $index + 1) foreach(@{$tokenHashListHash->{$titleList[$index]}});
+	my ($writer, $titleTokenHashListHash, $tokenHashList, $tokenHash, $titleIndex) = @_;
+	if($titleIndex < scalar(@titleList)) {
+		if(defined($_ = $titleTokenHashListHash->{$titleList[$titleIndex]}) && (my @tokenHashList = @$_)) {
+			printLines($writer, $titleTokenHashListHash, $tokenHashList, {%$tokenHash, %$_}, $titleIndex + 1) foreach(@tokenHashList);
 		} else {
-			printLines($writer, $tokenHashListHash, $tokenHashList, $tokenHash, $index + 1);
+			printLines($writer, $titleTokenHashListHash, $tokenHashList, $tokenHash, $titleIndex + 1);
 		}
 	} else {
 		if(@$tokenHashList) {
@@ -90,18 +295,38 @@ sub printLines {
 }
 
 sub executeFunction {
-	my ($function, @valueList) = @_;
-	return undef if(scalar(@valueList) == 0);
-	return join(',', @valueList) if($function eq '');
-	return join(',', unique(@valueList)) if($function eq 'unique');
-	return sum(@valueList) if($function eq 'sum');
-	return min(@valueList) if($function eq 'min');
-	return max(@valueList) if($function eq 'max');
-	return reduce {abs($a) < abs($b) ? $a : $b} @valueList if($function eq 'minabs');
-	return reduce {abs($a) > abs($b) ? $a : $b} @valueList if($function eq 'maxabs');
+	my ($function, @tokenList) = @_;
+	if(@tokenList) {
+		if($function eq '') {
+			if(all {$_ eq $tokenList[0]} @tokenList[1 .. $#tokenList]) {
+				return $tokenList[0];
+			} else {
+				return join(',', @tokenList);
+			}
+		}
+		return join(',', unique(@tokenList)) if($function eq 'unique');
+		return sum(@tokenList) if($function eq 'sum');
+		return min(@tokenList) if($function eq 'min');
+		return max(@tokenList) if($function eq 'max');
+		return reduce {abs($a) < abs($b) ? $a : $b} @tokenList if($function eq 'minabs');
+		return reduce {abs($a) > abs($b) ? $a : $b} @tokenList if($function eq 'maxabs');
+	} else {
+		return '';
+	}
+}
+
+sub unphaseGenotype {
+	return join('/', sort {$a <=> $b} grep {$_ ne '.'} split(/[\/|]/, $_[0])) if(scalar(@_) == 1);
+	return map {unphaseGenotype($_)} @_;
+}
+
+sub isHomozygousReferenceGenotype {
+	my ($genotype) = @_;
+	my @alleleList = unique(grep {$_ ne '.'} split(/[\/|]/, $genotype));
+	return scalar(@alleleList) == 1 && $alleleList[0] eq '0';
 }
 
 sub unique {
-	my @sorted = sort @_;
-	return @sorted[0, grep {$sorted[$_ - 1] ne $sorted[$_]} 1 .. $#sorted];
+	my @sortedTokenList = sort @_;
+	return @sortedTokenList[0, grep {$sortedTokenList[$_ - 1] ne $sortedTokenList[$_]} 1 .. $#sortedTokenList];
 }

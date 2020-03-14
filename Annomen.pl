@@ -11,7 +11,7 @@ GetOptions(
 	'c=s' => \(my $codons = ''),
 	's=s' => \(my $startCodons = 'ATG,CTG,TTG'),
 	'r' => \(my $checkReferenceVariation = ''),
-	'p=s' => \(my $peptideLength = ''),
+	'p=s' => \(my $peptideFlankingLength = 0),
 );
 my ($inputFile, $referenceFastaFile, $annotationTableFile, $transcriptFastaFile, $proteinFastaFile) = @ARGV;
 my $db = Bio::DB::Fasta->new($referenceFastaFile);
@@ -104,69 +104,71 @@ my %proteinSequenceHash = ();
 		close($reader);
 	}
 }
-my ($title, @columnList) = ('Annomen', 'mutation', 'region', 'strand', 'spliceDistance', 'geneName', 'transcriptId', 'proteinId', 'nucleotideVariationNomenclature', 'proteinVariationNomenclature', ($peptideLength ne '' ? 'peptides' : ()));
-my $vcf = 0;
-my @peptideList = ();
+my $title = 'Annomen';
+my @columnList = ('allele', 'geneName', 'region', 'mutation', 'strand', 'spliceDistance', 'transcriptId', 'proteinId', 'nucleotideVariationNomenclature', 'proteinVariationNomenclature', ($peptideFlankingLength ? ('peptidePosition', 'originalPeptide', 'mutationPeptide') : ()));
+my $vcf = '';
 open(my $reader, $inputFile);
 while(my $line = <$reader>) {
 	chomp($line);
 	if($line =~ /^#/) {
 		$vcf = 1 if($line =~ /^##fileformat=VCF/);
 		print "$line\n";
-	} else {
-		my @tokenList = split(/\t/, $line, -1);
-		my ($chromosome, $position, $refBase, $altBase) = @tokenList[$vcf ? (0, 1, 3, 4) : (0, 1, 2, 3)];
-		my @tokensList = ();
-		if(my @altBaseList = grep {/^[A-Za-z]*$/} split(/,/, $altBase)) {
-			my @startEndList = map {[getExtendedStartEnd($chromosome, stripIdentical($position, $refBase, $_))]} @altBaseList;
-			my ($start, $end) = (min(map {$_->[0]} @startEndList), max(map {$_->[1]} @startEndList));
+		next;
+	}
+	my @tokenList = split(/\t/, $line, -1);
+	my ($chromosome, $position, $refBase, $altBase) = @tokenList[$vcf ? (0, 1, 3, 4) : (0, 1, 2, 3)];
+	($refBase, $altBase) = map {uc} ($refBase, $altBase);
+	my @altBaseList = $altBase eq '' ? ('') : split(/,/, $altBase, -1);
+	my @tokenHashList = ();
+	foreach my $altBaseIndex (0 .. $#altBaseList) {
+		if((my $altBase = $altBaseList[$altBaseIndex]) =~ /^[A-Za-z]*$/) {
+			my ($start, $end) = getExtendedStartEnd($chromosome, stripIdentical($position, $refBase, $altBase));
 			my @transcriptIdList = ();
 			my %transcriptIdTokenHashListHash = ();
 			foreach my $tokenList (getTokenListList($chromosome, $position, $end)) {
 				my %tokenHash = ();
+				$tokenHash{'allele'} = $altBaseIndex + 1 if(scalar(@altBaseList) > 1);
 				@tokenHash{(getColumnList)} = @$tokenList;
 				next if($tokenHash{'end'} < $start);
-				@peptideList = ();
-				if(abs($tokenHash{'spliceDistance'} = getSpliceDistance($start, $end, \%tokenHash)) > 0) {
-					setMutationNomenclatures($chromosome, $position, $refBase, \@altBaseList, \%tokenHash);
+				if(($tokenHash{'spliceDistance'} = getSpliceDistance($start, $end, \%tokenHash)) != 0) {
+					setMutationNomenclatures($chromosome, $position, $refBase, $altBase, \%tokenHash);
 				}
-				$tokenHash{'peptides'} = join(',', @peptideList) if($peptideLength ne '');
 				$tokenHash{'region'} = getRegion($tokenHash{'strand'}, $start, $end, @tokenHash{'region', 'codingStart', 'codingEnd'});
 				my $transcriptId = $tokenHash{'transcriptId'};
 				push(@transcriptIdList, $transcriptId) unless(defined($transcriptIdTokenHashListHash{$transcriptId}));
 				push(@{$transcriptIdTokenHashListHash{$transcriptId}}, \%tokenHash);
 			}
 			foreach my $transcriptId (@transcriptIdList) {
-				my %tokenHash = ();
-				%tokenHash = %{$transcriptIdTokenHashListHash{$transcriptId}->[0]};
+				my %tokenHash = %{$transcriptIdTokenHashListHash{$transcriptId}->[0]};
 				if(scalar(my @tokenHashList = @{$transcriptIdTokenHashListHash{$transcriptId}}) > 1) {
 					my @regionList = map {split(/\^/, $_->{'region'})} sort {$a->{'startInTranscript'} <=> $b->{'startInTranscript'}} @tokenHashList;
 					$tokenHash{'region'} = join('^', map {$regionList[$_]} grep {$_ == 0 || $regionList[$_ - 1] ne $regionList[$_]} 0 .. $#regionList);
 					$tokenHash{'spliceDistance'} = min(map {$_->{'spliceDistance'}} @tokenHashList);
 				}
 				$tokenHash{'mutation'} = 'junction' if($tokenHash{'spliceDistance'} == 0);
-				push(@tokensList, join("\t", map {defined($_) ? $_ : ''} @tokenHash{@columnList}));
+				push(@tokenHashList, \%tokenHash);
 			}
 		}
-		if($vcf) {
-			if(@tokensList) {
-				my @infoList = grep {$_ ne '.' && $_ !~ /^$title\./} split(/;/, $tokenList[7]);
-				for(my $number = 1; $number <= scalar(@tokensList); $number++) {
-					my %tokenHash = ();
-					@tokenHash{@columnList} = split(/\t/, $tokensList[$number - 1], scalar(@columnList));
-					if(scalar(@tokensList) > 1) {
-						push(@infoList, map {"$title.${_}_$number=$tokenHash{$_}"} grep {$tokenHash{$_} ne ''} @columnList);
-					} else {
-						push(@infoList, map {"$title.$_=$tokenHash{$_}"} grep {$tokenHash{$_} ne ''} @columnList);
-					}
+	}
+	if($vcf) {
+		if(@tokenHashList) {
+			my @infoList = grep {$_ ne '.' && $_ !~ /^$title\./} split(/;/, $tokenList[7]);
+			for(my $number = 1; $number <= scalar(@tokenHashList); $number++) {
+				my %tokenHash = %{$tokenHashList[$number - 1]};
+				if(scalar(@tokenHashList) > 1) {
+					push(@infoList, map {"$title.${_}_$number=$tokenHash{$_}"} grep {defined($tokenHash{$_}) && $tokenHash{$_} ne ''} @columnList);
+				} else {
+					push(@infoList, map {"$title.$_=$tokenHash{$_}"} grep {defined($tokenHash{$_}) && $tokenHash{$_} ne ''} @columnList);
 				}
-				$tokenList[7] = join(';', @infoList);
 			}
-			print join("\t", @tokenList), "\n";
-		} else {
-			push(@tokensList, join("\t", ('') x scalar(@columnList))) if(scalar(@tokensList) == 0);
-			print join("\t", @tokenList, $_), "\n" foreach(@tokensList);
+			$tokenList[7] = join(';', @infoList);
 		}
+		print join("\t", @tokenList), "\n";
+	} else {
+		push(@tokenHashList, {}) if(scalar(@tokenHashList) == 0);
+		open(my $writer, "| sort -u");
+		print $writer join("\t", @tokenList, map {defined($_) ? $_ : ''} @$_{@columnList}), "\n" foreach(@tokenHashList);
+		close($writer);
 	}
 }
 close($reader);
@@ -224,8 +226,8 @@ sub getSpliceDistance {
 }
 
 sub setMutationNomenclatures {
-	my ($chromosome, $position, $refBase, $altBaseList, $tokenHash) = @_;
-	($position, $refBase, my @altBaseList) = stripIdentical($position, $refBase, @$altBaseList);
+	my ($chromosome, $position, $refBase, $altBase, $tokenHash) = @_;
+	($position, $refBase, $altBase) = stripIdentical($position, $refBase, $altBase);
 	my @codingRegionList = map {[split(/\.\./, $_)]} split(/,/, $tokenHash->{'codingRegions'});
 	@$tokenHash{'codingStartInTranscript', 'codingEndInTranscript'} = map {$codingRegionList[$_]->[$_]} (0, -1) if(@codingRegionList);
 	if($tokenHash->{'region'} eq 'exon') {
@@ -233,12 +235,12 @@ sub setMutationNomenclatures {
 		foreach my $mismatch (@mismatchList) {
 			if($mismatch->[0] < $position && $position <= $mismatch->[0] + length($mismatch->[1])) {
 				my $head = substr($mismatch->[1], 0, $position - $mismatch->[0]);
-				($refBase, @altBaseList) = map {"$head$_"} ($refBase, @altBaseList);
+				($refBase, $altBase) = map {"$head$_"} ($refBase, $altBase);
 				$position = $mismatch->[0];
 			}
 			if($mismatch->[0] <= $position + length($refBase) && $position + length($refBase) < $mismatch->[0] + length($mismatch->[1])) {
 				my $tail = substr($mismatch->[1], $position + length($refBase) - ($mismatch->[0] + length($mismatch->[1])));
-				($refBase, @altBaseList) = map {"$_$tail"} ($refBase, @altBaseList);
+				($refBase, $altBase) = map {"$_$tail"} ($refBase, $altBase);
 			}
 		}
 		my $rnaBase = $refBase;
@@ -252,12 +254,12 @@ sub setMutationNomenclatures {
 			$position = $tokenHash->{'startInTranscript'} + $position;
 		} else {
 			$position = $tokenHash->{'endInTranscript'} - $position - length($rnaBase) + 1;
-			($rnaBase, $refBase, @altBaseList) = map {getReverseComplementarySequence($_)} ($rnaBase, $refBase, @altBaseList);
+			($rnaBase, $refBase, $altBase) = map {getReverseComplementarySequence($_)} ($rnaBase, $refBase, $altBase);
 		}
 		my $transcriptSequence = $transcriptSequenceHash{my $transcriptId = $tokenHash->{'transcriptId'}};
 		my @transcriptProteinVariationNomenclaturesList = ();
 		push(@transcriptProteinVariationNomenclaturesList, [getTranscriptProteinVariationNomenclatures($transcriptSequence, $position, $rnaBase, $refBase, $tokenHash, @codingRegionList)]) if($checkReferenceVariation && $rnaBase ne $refBase);
-		push(@transcriptProteinVariationNomenclaturesList, [getTranscriptProteinVariationNomenclatures($transcriptSequence, $position, $rnaBase,       $_, $tokenHash, @codingRegionList)]) foreach(@altBaseList);
+		push(@transcriptProteinVariationNomenclaturesList, [getTranscriptProteinVariationNomenclatures($transcriptSequence, $position, $rnaBase, $altBase, $tokenHash, @codingRegionList)]);
 		$tokenHash->{'nucleotideVariationNomenclature'} = join(',', map {$_->[0]} @transcriptProteinVariationNomenclaturesList);
 		if(grep {$_ ne ''} (my @proteinVariationNomenclatureList = map {$_->[1]} @transcriptProteinVariationNomenclaturesList)) {
 			$tokenHash->{'proteinVariationNomenclature'} = join(',', @proteinVariationNomenclatureList);
@@ -271,17 +273,15 @@ sub setMutationNomenclatures {
 				$position = $position - $tokenHash->{'start'} + 1;
 			} else {
 				$position = $tokenHash->{'end'} - $position + 1 - length($refBase) + 1;
-				($intronSequence, $refBase, @altBaseList) = map {getReverseComplementarySequence($_)} ($intronSequence, $refBase, @altBaseList);
+				($intronSequence, $refBase, $altBase) = map {getReverseComplementarySequence($_)} ($intronSequence, $refBase, $altBase);
 			}
 			$tokenHash->{'intronSequenceLength'} = length($intronSequence);
-#			my @intronVariationNomenclatureList = ();
 #			if($tokenHash->{'spliceDistance'} > 0) {
-#				push(@intronVariationNomenclatureList, getNucleotideVariationNomenclature($intronSequence,  leftalignIndel($intronSequence, stripIdentical($position, $refBase, $_)), $tokenHash)) foreach(@altBaseList);
+#				$tokenHash->{'nucleotideVariationNomenclature'} = getNucleotideVariationNomenclature($intronSequence,  leftalignIndel($intronSequence, stripIdentical($position, $refBase, $altBase)), $tokenHash);
 #			} else {
-#				push(@intronVariationNomenclatureList, getNucleotideVariationNomenclature($intronSequence, rightalignIndel($intronSequence, stripIdentical($position, $refBase, $_)), $tokenHash)) foreach(@altBaseList);
+#				$tokenHash->{'nucleotideVariationNomenclature'} = getNucleotideVariationNomenclature($intronSequence, rightalignIndel($intronSequence, stripIdentical($position, $refBase, $altBase)), $tokenHash);
 #			}
-			my @intronVariationNomenclatureList = map {getNucleotideVariationNomenclature($intronSequence, rightalignIndel($intronSequence, stripIdentical($position, $refBase, $_)), $tokenHash)} @altBaseList;
-			$tokenHash->{'nucleotideVariationNomenclature'} = join(',', @intronVariationNomenclatureList);
+			$tokenHash->{'nucleotideVariationNomenclature'} = getNucleotideVariationNomenclature($intronSequence, rightalignIndel($intronSequence, stripIdentical($position, $refBase, $altBase)), $tokenHash);
 		}
 		$tokenHash->{'mutation'} = 'splicing' if(abs($tokenHash->{'spliceDistance'}) <= 2);
 	}
@@ -357,17 +357,16 @@ sub getTranscriptProteinVariationNomenclatures {
 				my ($originalStartCodon, $mutationStartCodon) = map {substr($_, 0, 3)} ($originalCodingSequence, $mutationCodingSequence);
 				if(grep {$_ eq $mutationStartCodon} ($originalStartCodon, @startCodonList)) {
 					$proteinVariationNomenclature = getProteinVariationNomenclature($originalProteinSequence, $mutationProteinSequence, $proteinVariationPosition, $originalProteinVariationLength, $mutationProteinVariationLength, $frameshift);
-					if($peptideLength ne '') {
-						if($peptideLength =~ /^([0-9]+)$/) {
-							foreach my $index (max(0, ($proteinVariationPosition - 1) - ($1 - 1)) .. ($frameshift == 0 ? min(($proteinVariationPosition - 1) + ($mutationProteinVariationLength - 1), (length($mutationProteinSequence) - 1) - ($1 - 1)) : (length($mutationProteinSequence) - 1) - ($1 - 1))) {
-								push(@peptideList, substr($mutationProteinSequence, $index, $1));
-							}
-						}
-						if($peptideLength =~ /^\+([0-9]+)$/) {
-							my $index = max(0, ($proteinVariationPosition - 1) - ($1 - 1));
-							my $length = ($frameshift == 0 ? min(($proteinVariationPosition - 1) + ($mutationProteinVariationLength - 1), (length($mutationProteinSequence) - 1) - ($1 - 1)) : (length($mutationProteinSequence) - 1) - ($1 - 1)) - $index + $1;
-							push(@peptideList, substr($mutationProteinSequence, $index, $length));
-						}
+					if($peptideFlankingLength) {
+						my $index = ($proteinVariationPosition - 1) - $peptideFlankingLength;
+						$index = 0 if($index < 0);
+						my $originalPeptideLength = $frameshift == 0 ? $originalProteinVariationLength + $peptideFlankingLength * 2 : length($originalProteinSequence) - $index;
+						my $mutationPeptideLength = $frameshift == 0 ? $mutationProteinVariationLength + $peptideFlankingLength * 2 : length($mutationProteinSequence) - $index;
+						my $originalPeptide = substr($originalProteinSequence, $index, $originalPeptideLength);
+						my $mutationPeptide = substr($mutationProteinSequence, $index, $mutationPeptideLength);
+						$tokenHash->{'peptidePosition'} = $index + 1;
+						$tokenHash->{'originalPeptide'} = $originalPeptide;
+						$tokenHash->{'mutationPeptide'} = $mutationPeptide;
 					}
 				} else {
 					$proteinVariationNomenclature = 'p.?';
@@ -504,8 +503,8 @@ sub leftalignIndel {
 	my ($sequence, $position, $original, $mutation) = @_;
 	if($original eq '' || $mutation eq '') {
 		my $indel = "$original$mutation";
-		my $partialSequence = substr($sequence, 0, $position - 1);
-		$indel = substr($indel, -1, 1, '') . $indel while(substr($indel, -1, 1) eq substr($partialSequence, -1, 1, '') && $position--);
+		$sequence = substr($sequence, 0, $position - 1);
+		$indel = substr($indel, -1, 1, '') . $indel while(substr($indel, -1, 1) eq substr($sequence, -1, 1, '') && $position--);
 		$original = $indel if($original ne '');
 		$mutation = $indel if($mutation ne '');
 	}
@@ -516,8 +515,8 @@ sub rightalignIndel {
 	my ($sequence, $position, $original, $mutation) = @_;
 	if($original eq '' || $mutation eq '') {
 		my $indel = "$original$mutation";
-		my $partialSequence = substr($sequence, $position - 1 + length($original));
-		$indel = $indel . substr($indel, 0, 1, '') while(substr($indel, 0, 1) eq substr($partialSequence, 0, 1, '') && $position++);
+		$sequence = substr($sequence, $position - 1 + length($original));
+		$indel = $indel . substr($indel, 0, 1, '') while(substr($indel, 0, 1) eq substr($sequence, 0, 1, '') && $position++);
 		$original = $indel if($original ne '');
 		$mutation = $indel if($mutation ne '');
 	}
@@ -529,9 +528,17 @@ sub getExtendedStartEnd {
 	my ($start, $end) = ($position, $position + length($refBase) - 1);
 	if($refBase eq '' || $altBase eq '') {
 		for(my ($indel, $extended) = ("$refBase$altBase", ''); "$indel$extended" =~ /^$extended/;) {
-			$extended .= uc($db->seq($chromosome, $end += 1, $end));
+			$end += 1;
+			last if($end > $db->length($chromosome));
+			$extended .= uc($db->seq($chromosome, $end, $end));
 		}
 		$end -= 1;
+		for(my ($indel, $extended) = ("$refBase$altBase", ''); "$extended$indel" =~ /$extended$/;) {
+			$start -= 1;
+			last if($start < 1);
+			$extended .= uc($db->seq($chromosome, $start, $start));
+		}
+		$start += 1;
 		($start, $end) = ($end, $start) if($end < $start);
 	}
 	return ($start, $end);
@@ -549,12 +556,6 @@ sub stripIdentical {
 		$position += 1;
 	}
 	return ($position, @sequenceList);
-}
-
-sub getReverseComplementarySequence {
-	my ($sequence) = @_;
-	($sequence = reverse($sequence)) =~ tr/ACGT/TGCA/;
-	return $sequence;
 }
 
 sub getChromosomeList {
@@ -577,4 +578,10 @@ sub getChromosomeList {
 		close($reader);
 	}
 	return @chromosomeList;
+}
+
+sub getReverseComplementarySequence {
+	my ($sequence) = @_;
+	($sequence = reverse($sequence)) =~ tr/ACGT/TGCA/;
+	return $sequence;
 }

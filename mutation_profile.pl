@@ -9,30 +9,37 @@ use Getopt::Long;
 GetOptions(
 	'c' => \(my $printCount = ''),
 );
-my ($inputFile, $referenceFastaFile) = @ARGV;
+my ($referenceFastaFile, @variantFileList) = @ARGV;
 my $db = Bio::DB::Fasta->new($referenceFastaFile);
 
 my %trinucleotidesCountHash = ();
 my $totalCount = 0;
-open(my $reader, $inputFile);
-while(my $line = <$reader>) {
-	chomp($line);
-	next if($line =~ /^#/);
-	my ($chromosome, $position, $refBase, $altBase) = split(/\t/, $line, -1);
-	($refBase, $altBase) = map {uc} ($refBase, $altBase);
-	if($refBase =~ /^[ACGT]$/ && $altBase =~ /^[ACGT]$/ && $refBase ne $altBase) {
-		my $refTrinucleotide = uc($db->seq($chromosome, $position - 1, $position + 1));
-		substr(my $altTrinucleotide = $refTrinucleotide, 1, 1, $altBase);
-		unless(grep {$_ eq $refBase} ('C', 'T')) {
-			($refTrinucleotide = reverse($refTrinucleotide)) =~ tr/ACGT/TGCA/;
-			($altTrinucleotide = reverse($altTrinucleotide)) =~ tr/ACGT/TGCA/;
+foreach my $variantFile (@variantFileList) {
+	open(my $reader, ($variantFile =~ /\.gz$/ ? "gzip -dc $variantFile |" : $variantFile));
+	chomp(my $line = <$reader>);
+	$line =~ s/^#//;
+	my @columnList = split(/\t/, $line, -1);
+	while(my $line = <$reader>) {
+		chomp($line);
+		my %tokenHash = ();
+		@tokenHash{@columnList} = split(/\t/, $line, -1);
+		my ($chromosome, $position, $refBase, $altBase) = @tokenHash{'Chromosome', 'Position', 'Reference base', 'Alternate base'};
+		($altBase, my $allele) = getAltBaseAllele($altBase);
+		next unless(grep {$_ eq $allele} split(/[\/|]/, $tokenHash{'Genotype'}));
+		if($refBase =~ /^[ACGT]$/ && $altBase =~ /^[ACGT]$/ && $refBase ne $altBase) {
+			my $refTrinucleotide = uc($db->seq($chromosome, $position - 1, $position + 1));
+			substr(my $altTrinucleotide = $refTrinucleotide, 1, 1, $altBase);
+			unless(grep {$_ eq $refBase} ('C', 'T')) {
+				($refTrinucleotide = reverse($refTrinucleotide)) =~ tr/ACGT/TGCA/;
+				($altTrinucleotide = reverse($altTrinucleotide)) =~ tr/ACGT/TGCA/;
+			}
+			my $trinucleotides = "$refTrinucleotide > $altTrinucleotide";
+			$trinucleotidesCountHash{$trinucleotides} += 1;
+			$totalCount += 1;
 		}
-		my $trinucleotides = "$refTrinucleotide > $altTrinucleotide";
-		$trinucleotidesCountHash{$trinucleotides} += 1;
-		$totalCount += 1;
 	}
+	close($reader);
 }
-close($reader);
 
 foreach my $refBase ('C', 'T') {
 	foreach my $altBase (grep {$_ ne $refBase} ('A', 'C', 'G', 'T')) {
@@ -45,5 +52,14 @@ foreach my $refBase ('C', 'T') {
 				print join("\t", "$base5prime\[$refBase>$altBase\]$base3prime", $printCount ? $count : $count / $totalCount), "\n";
 			}
 		}
+	}
+}
+
+sub getAltBaseAllele {
+	my ($altBase) = @_;
+	my @altBaseList = $altBase eq '' ? ('') : split(/,/, $altBase, -1);
+	return ($altBase, 1) if(scalar(@altBaseList) == 1);
+	foreach my $altBaseIndex (0 .. $#altBaseList) {
+		return ($1, $altBaseIndex + 1) if($altBaseList[$altBaseIndex] =~ /^\[(.*)\]$/);
 	}
 }

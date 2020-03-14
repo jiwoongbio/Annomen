@@ -6,20 +6,16 @@ local $SIG{__WARN__} = sub { die $_[0] };
 use Getopt::Long qw(:config no_ignore_case);
 
 GetOptions(
-	'h' => \(my $help = ''),
-	'c' => \(my $comment = ''),
 	'h' => \(my $header = ''),
 	'a' => \(my $append = ''),
 );
-if($help || scalar(@ARGV) == 0) {
+if(scalar(@ARGV) == 0) {
 	die <<EOF;
 
 Usage:   perl sort_by_reference.pl [options] input.txt reference.fasta chromosome.index position.index [...] > output.sorted.txt
 
-Options: -h       display this help message
-         -c       comment lines starting with "#"
-         -h       the first line is header
-         -a       append files instead of operning file writers
+Options: -h       the first line is header
+         -a       append to files instead of open file writers
 
 EOF
 }
@@ -32,8 +28,15 @@ my %chromosomeWriterHash = ();
 open(my $reader, $tableFile);
 while(my $line = <$reader>) {
 	chomp($line);
-	next if($line =~ /^#/ && (!$comment || (print "$line\n")));
-	next if($header && !($header = '') && (print "$line\n"));
+	if($line =~ /^#/) {
+		print "$line\n";
+		next;
+	}
+	if($header) {
+		$header = '';
+		print "$line\n";
+		next;
+	}
 	my @tokenList = split("\t", $line, -1);
 	my $chromosome = $tokenList[$chromosomeIndex];
 	$chromosome =~ s/[ |>;()\$].*$//;
