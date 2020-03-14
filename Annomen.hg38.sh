@@ -1,5 +1,5 @@
-# Author: Jiwoong Kim (jiwoongbio@gmail.com)
 #!/bin/bash
+# Author: Jiwoong Kim (jiwoongbio@gmail.com)
 
 directory=`dirname $0`
 inputFile=$1
