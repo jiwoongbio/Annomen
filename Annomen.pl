@@ -7,42 +7,60 @@ use List::Util qw(sum min max);
 use Bio::DB::Fasta;
 use Getopt::Long qw(:config no_ignore_case);
 
+my @codonList = ();
 GetOptions(
-	'c=s' => \(my $codons = ''),
-	's=s' => \(my $startCodons = 'ATG,CTG,TTG'),
+	'h' => \(my $help = ''),
+	'C=s' => \@codonList,
+	'S=s' => \(my $startCodons = 'ATG,CTG,TTG'),
 	'r' => \(my $checkReferenceVariation = ''),
-	'p=s' => \(my $peptideFlankingLength = 0),
+	'p=i' => \(my $peptideFlankingLength = 0),
 );
-my ($inputFile, $referenceFastaFile, $annotationTableFile, $transcriptFastaFile, $proteinFastaFile) = @ARGV;
+if($help || scalar(@ARGV) == 0) {
+	die <<EOF;
+
+Usage:   perl Annomen.pl [options] variant.vcf|variant.txt genome.fasta Annomen_table.txt transcript.fasta protein.fasta > variant.annotated.vcf|variant.annotated.txt
+
+Options: -h       display this help message
+         -C STR   codon and translation e.g. ATG=M [NCBI genetic code 1 (standard)]
+         -S STR   comma-separated start codons [$startCodons]
+         -r       check reference variation
+         -p       peptide flanking length
+
+EOF
+}
+{
+	my %codonHash = (
+		'TTT' => 'F', 'CTT' => 'L', 'ATT' => 'I', 'GTT' => 'V',
+		'TTC' => 'F', 'CTC' => 'L', 'ATC' => 'I', 'GTC' => 'V',
+		'TTA' => 'L', 'CTA' => 'L', 'ATA' => 'I', 'GTA' => 'V',
+		'TTG' => 'L', 'CTG' => 'L', 'ATG' => 'M', 'GTG' => 'V',
+
+		'TCT' => 'S', 'CCT' => 'P', 'ACT' => 'T', 'GCT' => 'A',
+		'TCC' => 'S', 'CCC' => 'P', 'ACC' => 'T', 'GCC' => 'A',
+		'TCA' => 'S', 'CCA' => 'P', 'ACA' => 'T', 'GCA' => 'A',
+		'TCG' => 'S', 'CCG' => 'P', 'ACG' => 'T', 'GCG' => 'A',
+
+		'TAT' => 'Y', 'CAT' => 'H', 'AAT' => 'N', 'GAT' => 'D',
+		'TAC' => 'Y', 'CAC' => 'H', 'AAC' => 'N', 'GAC' => 'D',
+		'TAA' => '*', 'CAA' => 'Q', 'AAA' => 'K', 'GAA' => 'E',
+		'TAG' => '*', 'CAG' => 'Q', 'AAG' => 'K', 'GAG' => 'E',
+
+		'TGT' => 'C', 'CGT' => 'R', 'AGT' => 'S', 'GGT' => 'G',
+		'TGC' => 'C', 'CGC' => 'R', 'AGC' => 'S', 'GGC' => 'G',
+		'TGA' => '*', 'CGA' => 'R', 'AGA' => 'R', 'GGA' => 'G',
+		'TGG' => 'W', 'CGG' => 'R', 'AGG' => 'R', 'GGG' => 'G',
+	);
+	$codonHash{$_->[0]} = $_->[1] foreach(map {[split(/=/, $_)]} @codonList);
+
+	sub translate {
+		my ($sequence) = @_;
+		return join('', map {defined($_) ? $_ : 'X'} map {$codonHash{substr($sequence, $_ * 3, 3)}} 0 .. int(length($sequence) / 3) - 1);
+	}
+}
+my %startCodonHash = map {$_ => 1} split(/,/, $startCodons);
+my ($variantFile, $referenceFastaFile, $annotationTableFile, $transcriptFastaFile, $proteinFastaFile) = @ARGV;
 my $db = Bio::DB::Fasta->new($referenceFastaFile);
 my %aaOneToThreeLetter = ('A' => 'Ala', 'B' => 'Asx', 'C' => 'Cys', 'D' => 'Asp', 'E' => 'Glu', 'F' => 'Phe', 'G' => 'Gly', 'H' => 'His', 'I' => 'Ile', 'K' => 'Lys', 'L' => 'Leu', 'M' => 'Met', 'N' => 'Asn', 'P' => 'Pro', 'Q' => 'Gln', 'R' => 'Arg', 'S' => 'Ser', 'T' => 'Thr', 'V' => 'Val', 'W' => 'Trp', 'X' => 'Xxx', 'Y' => 'Tyr', 'Z' => 'Glx');
-my %codonHash = (
-	'TTT' => 'F', 'CTT' => 'L', 'ATT' => 'I', 'GTT' => 'V',
-	'TTC' => 'F', 'CTC' => 'L', 'ATC' => 'I', 'GTC' => 'V',
-	'TTA' => 'L', 'CTA' => 'L', 'ATA' => 'I', 'GTA' => 'V',
-	'TTG' => 'L', 'CTG' => 'L', 'ATG' => 'M', 'GTG' => 'V',
-
-	'TCT' => 'S', 'CCT' => 'P', 'ACT' => 'T', 'GCT' => 'A',
-	'TCC' => 'S', 'CCC' => 'P', 'ACC' => 'T', 'GCC' => 'A',
-	'TCA' => 'S', 'CCA' => 'P', 'ACA' => 'T', 'GCA' => 'A',
-	'TCG' => 'S', 'CCG' => 'P', 'ACG' => 'T', 'GCG' => 'A',
-
-	'TAT' => 'Y', 'CAT' => 'H', 'AAT' => 'N', 'GAT' => 'D',
-	'TAC' => 'Y', 'CAC' => 'H', 'AAC' => 'N', 'GAC' => 'D',
-	'TAA' => '*', 'CAA' => 'Q', 'AAA' => 'K', 'GAA' => 'E',
-	'TAG' => '*', 'CAG' => 'Q', 'AAG' => 'K', 'GAG' => 'E',
-
-	'TGT' => 'C', 'CGT' => 'R', 'AGT' => 'S', 'GGT' => 'G',
-	'TGC' => 'C', 'CGC' => 'R', 'AGC' => 'S', 'GGC' => 'G',
-	'TGA' => '*', 'CGA' => 'R', 'AGA' => 'R', 'GGA' => 'G',
-	'TGG' => 'W', 'CGG' => 'R', 'AGG' => 'R', 'GGG' => 'G',
-);
-$codonHash{$_->[0]} = $_->[1] foreach(map {[split(/=/, $_)]} split(/,/, $codons));
-sub translate {
-	my ($sequence) = @_;
-	return join('', map {defined($_) ? $_ : 'X'} map {$codonHash{substr($sequence, $_ * 3, 3)}} 0 .. (length($sequence) / 3) - 1);
-}
-my @startCodonList = split(/,/, $startCodons);
 my %transcriptSequenceHash = ();
 {
 	my $transcriptId = '';
@@ -107,7 +125,7 @@ my %proteinSequenceHash = ();
 my $title = 'Annomen';
 my @columnList = ('allele', 'geneName', 'region', 'mutation', 'strand', 'spliceDistance', 'transcriptId', 'proteinId', 'nucleotideVariationNomenclature', 'proteinVariationNomenclature', ($peptideFlankingLength ? ('peptidePosition', 'originalPeptide', 'mutationPeptide') : ()));
 my $vcf = '';
-open(my $reader, $inputFile);
+open(my $reader, $variantFile);
 while(my $line = <$reader>) {
 	chomp($line);
 	if($line =~ /^#/) {
@@ -355,7 +373,7 @@ sub getTranscriptProteinVariationNomenclatures {
 			} else {
 				$proteinVariationPosition++ while(substr($originalProteinSequence, $proteinVariationPosition - 1, 1) eq substr($mutationProteinSequence, $proteinVariationPosition - 1, 1));
 				my ($originalStartCodon, $mutationStartCodon) = map {substr($_, 0, 3)} ($originalCodingSequence, $mutationCodingSequence);
-				if(grep {$_ eq $mutationStartCodon} ($originalStartCodon, @startCodonList)) {
+				if($originalStartCodon eq $mutationStartCodon || $startCodonHash{$mutationStartCodon}) {
 					$proteinVariationNomenclature = getProteinVariationNomenclature($originalProteinSequence, $mutationProteinSequence, $proteinVariationPosition, $originalProteinVariationLength, $mutationProteinVariationLength, $frameshift);
 					if($peptideFlankingLength) {
 						my $index = ($proteinVariationPosition - 1) - $peptideFlankingLength;

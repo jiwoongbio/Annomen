@@ -15,11 +15,25 @@ my $temporaryDirectory = $ENV{'TMPDIR'};
 $temporaryDirectory = '/tmp' unless($temporaryDirectory);
 my @codonList = ();
 GetOptions(
+	'h' => \(my $help = ''),
 	't=s' => \$temporaryDirectory,
 	'c=s' => \(my $chromosomeToChromosomeFile = ''),
 	'C=s' => \@codonList,
 	'T' => \(my $isTranscriptGenome = ''),
 );
+if($help || scalar(@ARGV) == 0) {
+	die <<EOF;
+
+Usage:   perl Annomen_table.pl [options] gene.gff genome.fasta transcript.fasta protein.fasta [transcript.gb/] > Annomen_table.txt
+
+Options: -h       display this help message
+         -t DIR   directory for temporary files [\$TMPDIR or /tmp]
+         -c FILE  chromosome-to-chromosome file
+         -C STR   codon and translation e.g. ATG=M [NCBI genetic code 1 (standard)]
+         -T       is transcript genome
+
+EOF
+}
 {
 	my %codonHash = (
 		'TTT' => 'F', 'CTT' => 'L', 'ATT' => 'I', 'GTT' => 'V',
