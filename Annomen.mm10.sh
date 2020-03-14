@@ -8,4 +8,4 @@ annotationTableFile=$directory/Annomen_table.mm10.txt
 transcriptFastaFile=$directory/mouse.rna.fna
 proteinFastaFile=$directory/mouse.protein.faa
 
-perl $directory/leftalignIndel.pl $inputFile $referenceFastaFile | perl $directory/sort_by_reference.pl -c - $referenceFastaFile 0 1 | perl $directory/Annomen.pl - $referenceFastaFile $annotationTableFile $transcriptFastaFile $proteinFastaFile
+perl $directory/leftalignIndel.pl $inputFile $referenceFastaFile | perl $directory/sort_by_reference.pl - $referenceFastaFile 0 1 | perl $directory/Annomen.pl - $referenceFastaFile $annotationTableFile $transcriptFastaFile $proteinFastaFile
