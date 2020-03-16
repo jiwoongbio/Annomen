@@ -407,6 +407,7 @@ sub printTable {
 				push(@cdsList, [$proteinId, @codingExonPositionList[0, -1], $codingRegions, $frame]);
 			}
 		}
+		my %cdsHash = ();
 		foreach my $cds (@cdsList) {
 			my ($proteinId, $codingStart, $codingEnd, $codingRegions, $frame) = @$cds;
 			my $codingSequence = join('', map {substr($transcriptSequence, $_->[0] - 1, $_->[-1] - ($_->[0] - 1))} map {[split(/\.\./, $_, 2)]} split(/,/, $codingRegions));
@@ -415,6 +416,7 @@ sub printTable {
 			unless(defined($proteinSequence)) {
 				if(-r $proteinFastaFile) {
 					print STDERR join("\t", $transcriptId, $proteinId, 'no protein sequence'), "\n";
+					$cdsHash{$cds} = 1;
 					next;
 				} else {
 					$proteinSequence = $proteinSequenceHash{$proteinId} = $translateSequence;
@@ -432,6 +434,7 @@ sub printTable {
 				}
 			}
 		}
+		@cdsList = grep {!defined($cdsHash{$_})} @cdsList;
 		for(my $index = 0; $index < $exonCount; $index++) {
 			my $number = $index + 1;
 			$number = $exonCount - $index if($strand eq '-');
