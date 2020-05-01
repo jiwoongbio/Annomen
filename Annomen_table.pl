@@ -20,6 +20,7 @@ GetOptions(
 	'c=s' => \(my $chromosomeToChromosomeFile = ''),
 	'C=s' => \@codonList,
 	'T' => \(my $isTranscriptGenome = ''),
+	'i' => \(my $minimumIdentity = 0.8),
 );
 if($help || scalar(@ARGV) == 0) {
 	die <<EOF;
@@ -31,6 +32,7 @@ Options: -h       display this help message
          -c FILE  chromosome-to-chromosome file
          -C STR   codon and translation e.g. ATG=M [NCBI genetic code 1 (standard)]
          -T       is transcript genome
+         -i FLOAT minimum identity between genome and transcript sequences
 
 EOF
 }
@@ -348,6 +350,7 @@ sub printTable {
 			}
 		}
 		print STDERR join("\t", $transcriptId, 'identity', $identity), "\n";
+		next if($identity < $minimumIdentity);
 		my %exon2transcriptPositionHash = ();
 		my %transcript2exonPositionHash = ();
 		my @mismatchList = ();
