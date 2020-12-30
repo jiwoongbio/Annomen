@@ -107,11 +107,17 @@ if(@columnNameList) {
 }
 my @columnList = map {$_->[0]} @columnNameList;
 my @sampleColumnList = ();
+my @tumorSampleColumnList = ();
+my @normalSampleColumnList = ();
 my @functionColumnList = ();
 my @titleList = ();
 foreach my $column (@columnList) {
 	if($column =~ /^SAMPLE\.(.*)$/) {
 		push(@sampleColumnList, $1);
+	} elsif($column =~ /^tumor\.(.*)$/) {
+		push(@tumorSampleColumnList, $1);
+	} elsif($column =~ /^normal\.(.*)$/) {
+		push(@normalSampleColumnList, $1);
 	} elsif($column =~ /^(.*)\((.*)\)$/) {
 		push(@functionColumnList, $column);
 	} elsif($column =~ /^([^.]*)\.(.*)$/) {
@@ -120,6 +126,9 @@ foreach my $column (@columnList) {
 }
 @titleList = unique(@titleList) if(@titleList);
 my @sampleList = ();
+my %sampleIndexHash = ();
+my $normalSample = '';
+my $tumorSample = '';
 {
 	open(my $reader, ($vcfFile =~ /\.gz$/ ? "gzip -dc $vcfFile |" : $vcfFile));
 	my @lineList = ();
@@ -128,6 +137,7 @@ my @sampleList = ();
 		if($line =~ s/^#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO//) {
 			if($line =~ s/^\tFORMAT\t//) {
 				@sampleList = split(/\t/, $line, -1);
+				@sampleIndexHash{@sampleList} = 0 .. $#sampleList;
 				if($doNotParseGenotypeField eq '') {
 					foreach my $index (0 .. $#columnNameList) {
 						if($columnNameList[$index]->[0] =~ /^SAMPLE\.(.*)$/) {
@@ -143,7 +153,11 @@ my @sampleList = ();
 			print '#', join("\t", map {$_->[-1]} @columnNameList), "\n";
 			next;
 		}
-		next if($line =~ /^#/);
+		if($line =~ /^#/) {
+			$normalSample = $1 if($line =~ / --normal-sample (\S+) /);
+			$tumorSample = $1 if($line =~ / --tumor-sample (\S+) /);
+			next;
+		}
 		push(@lineList, $line);
 		if(scalar(@lineList) >= $numberPerThread) {
 			if($threads == 1) {
@@ -171,6 +185,7 @@ sub printTable {
 		my %tokenHash = ();
 		(@tokenHash{'CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT'}, my @genotypeList) = map {$_ eq '.' ? '' : $_} split(/\t/, $line, -1);
 		next if($passFilter eq '' && $tokenHash{'FILTER'} ne 'PASS');
+		$tokenHash{'END'} = $tokenHash{'POS'} + length($tokenHash{'REF'}) - 1;
 		my $altBase = $tokenHash{'ALT'};
 		my @altBaseList = $altBase eq '' ? ('') : split(/,/, $altBase, -1);
 		my @titleTokenHashListHashList = ();
@@ -203,7 +218,7 @@ sub printTable {
 		my @tokenHashList = ();
 		if(defined($tokenHash{'FORMAT'}) && $doNotParseGenotypeField eq '') {
 			my @formatList = split(/:/, $tokenHash{'FORMAT'}, -1);
-			for(my $index = 0; $index < scalar(@sampleList); $index++) {
+			foreach my $index (0 .. $#sampleList) {
 				$tokenHashList[$index]->{'SAMPLE'} = $sampleList[$index];
 				@{$tokenHashList[$index]}{@formatList} = split(/:/, $genotypeList[$index], -1);
 			}
@@ -260,6 +275,23 @@ sub printTable {
 			}
 			if(scalar(@altBaseList) > 1) {
 				$tokenHash{'ALT'} = join(',', map {$_ == $altBaseIndex ? "[$altBaseList[$_]]" : $altBaseList[$_]} 0 .. $#altBaseList);
+			}
+			foreach my $index (0 .. $#sampleList) {
+				if($tokenHashList[$index]->{'AD'}) {
+					my @alleleDepthList = split(/,/, $tokenHashList[$index]->{'AD'});
+					$tokenHashList[$index]->{'refAD'} = $alleleDepthList[0];
+					$tokenHashList[$index]->{'altAD'} = $alleleDepthList[$altBaseIndex + 1];
+				}
+			}
+			if($normalSample ne '') {
+				foreach my $column (@normalSampleColumnList) {
+					$tokenHash{"normal.$column"} = $tokenHashList[$sampleIndexHash{$normalSample}]->{$column};
+				}
+			}
+			if($tumorSample ne '') {
+				foreach my $column (@tumorSampleColumnList) {
+					$tokenHash{"tumor.$column"} = $tokenHashList[$sampleIndexHash{$tumorSample}]->{$column};
+				}
 			}
 			my $pid = open2(my $reader, my $writer, 'sort -u');
 			if($doNotPrintUnmatchedVariant || $doNotPrintCommonVariant) {
