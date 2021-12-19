@@ -99,7 +99,7 @@ while(my $line = <$reader>) {
 			foreach my $tokenList (getTokenListList($chromosome, $position, $end)) {
 				my %tokenHash = ();
 				$tokenHash{'allele'} = $allele if(scalar(@altBaseList) > 1);
-				@tokenHash{(getColumnList)} = @$tokenList;
+				@tokenHash{(getColumnList())} = @$tokenList;
 				next if($tokenHash{'end'} < $start);
 				if($positionOnly) {
 					push(@tokenHashList, \%tokenHash);

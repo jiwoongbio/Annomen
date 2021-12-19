@@ -360,6 +360,6 @@ sub isHomozygousReferenceGenotype {
 
 sub unique {
 	my @sortedTokenList = sort @_;
-	@sortedTokenList = @sortedTokenList[0, grep {$sortedTokenList[$_ - 1] ne $sortedTokenList[$_]} 1 .. $#sortedTokenList];
+	@sortedTokenList = @sortedTokenList[0, grep {$sortedTokenList[$_ - 1] ne $sortedTokenList[$_]} 1 .. $#sortedTokenList] if(@sortedTokenList);
 	return @sortedTokenList;
 }

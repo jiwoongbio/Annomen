@@ -129,7 +129,7 @@ my $pid = open2(my $reader, my $writer, "sort -t '\t' -k1,1n -k2,2n -k3,3n");
 		my @remainIdList = ();
 		foreach my $id (@idList) {
 			if($tokenHashHash{$id}->{'chromosome'} ne $tokenHash{'chromosome'} || (defined($tokenHashHash{$id}->{'end'}) && $tokenHashHash{$id}->{'end'} < $tokenHash{'start'})) {
-				my ($transcriptId, $geneName) = (getAttributeValue($tokenHashHash{$id}, 'transcript_id', 'locus_tag'), getAttributeValue($tokenHashHash{$id}, 'gene_name', 'gene'));
+				my ($transcriptId, $geneName) = (getAttributeValue($tokenHashHash{$id}, 'transcript_id', 'locus_tag', 'gene_name', 'gene'), getAttributeValue($tokenHashHash{$id}, 'gene_name', 'gene'));
 				if(defined(my $proteinIdList = $proteinIdListHash{$id})) {
 					foreach my $proteinId (@$proteinIdList) {
 						if(scalar(@$proteinIdList) > 1) {
