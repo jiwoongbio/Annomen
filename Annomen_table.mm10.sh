@@ -13,7 +13,7 @@
 # 5. lftp: http://lftp.yar.ru
 
 # Remove old files
-rm -rf mm10.fa.gz refseq/M_musculus/mRNA_Prot mouse.rna.fna mouse.protein.faa mouse.rna.gbff Annomen_table.txt Annomen_table.log
+rm -rf mm10.fa.gz refseq/M_musculus/mRNA_Prot mouse.rna.fna mouse.protein.faa mouse.rna.gbff Annomen_table.mm10.txt Annomen_table.mm10.log
 
 # Prepare reference genome fasta file
 genomeFastaFile=`readlink -f ~/data/igenomes/Mus_musculus/UCSC/mm10/Sequence/WholeGenomeFasta/genome.fa`

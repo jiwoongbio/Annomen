@@ -13,7 +13,7 @@
 # 5. lftp: http://lftp.yar.ru
 
 # Remove old files
-rm -rf hg38.fa.gz refseq/H_sapiens/mRNA_Prot human.rna.fna human.protein.faa human.rna.gbff Annomen_table.txt Annomen_table.log
+rm -rf hg38.fa.gz refseq/H_sapiens/mRNA_Prot human.rna.fna human.protein.faa human.rna.gbff Annomen_table.hg38.txt Annomen_table.hg38.log
 
 # Prepare reference genome fasta file
 genomeFastaFile=`readlink -f ~/data/igenomes/Homo_sapiens/UCSC/hg38/Sequence/WholeGenomeFasta/genome.fa`
