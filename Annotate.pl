@@ -110,7 +110,7 @@ while(my $line = <$reader>) {
 			}
 		}
 	}
-	my @columnList = ('allele', @columnList) if($noAlleleColumn eq '');
+	my @columnList = $noAlleleColumn ? @columnList : ('allele', @columnList);
 	if($vcf) {
 		if(@tokenHashList) {
 			if($title ne '') {
@@ -135,7 +135,7 @@ while(my $line = <$reader>) {
 			print $writer join("\t", @tokenList, map {defined($_) ? $_ : ''} @$_{@columnList}), "\n" foreach(@tokenHashList);
 			close($writer);
 		} elsif($annotatedOnly eq '') {
-			print join("\t", @tokenList, ('' x scalar(@columnList))), "\n";
+			print join("\t", @tokenList, ('') x scalar(@columnList)), "\n";
 		}
 	}
 }

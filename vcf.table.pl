@@ -16,6 +16,8 @@ GetOptions(
 	'p=i' => \(my $threads = 1),
 	'numberPerThread=i' => \(my $numberPerThread = 10000),
 	'c=s' => \(my $columnNameFile = ''),
+	'N=s' => \(my $normalSample = ''),
+	'T=s' => \(my $tumorSample = ''),
 	'P' => \(my $passFilter = ''),
 	'I' => \(my $doNotParseInfoField = ''),
 	'G' => \(my $doNotParseGenotypeField = ''),
@@ -34,6 +36,8 @@ Options: -h       display this help message
          -t DIR   temporary directory [$temporaryDirectory]
          -p INT   threads [$threads]
          -c FILE  column name file
+         -N STR   normal sample
+         -T STR   tumor sample
          -P       pass filter
          -I       do not parse INFO field
          -G       do not parse Genotype field
@@ -127,8 +131,6 @@ foreach my $column (@columnList) {
 @titleList = unique(@titleList) if(@titleList);
 my @sampleList = ();
 my %sampleIndexHash = ();
-my $normalSample = '';
-my $tumorSample = '';
 {
 	open(my $reader, ($vcfFile =~ /\.gz$/ ? "gzip -dc $vcfFile |" : $vcfFile));
 	my @lineList = ();
@@ -154,8 +156,8 @@ my $tumorSample = '';
 			next;
 		}
 		if($line =~ /^#/) {
-			$normalSample = $1 if($line =~ / --normal-sample (\S+) /);
-			$tumorSample = $1 if($line =~ / --tumor-sample (\S+) /);
+			$normalSample = $1 if($normalSample eq '' && $line =~ / --normal-sample (\S+) /);
+			$tumorSample = $1 if($tumorSample eq '' && $line =~ / --tumor-sample (\S+) /);
 			next;
 		}
 		push(@lineList, $line);
@@ -276,21 +278,31 @@ sub printTable {
 			if(scalar(@altBaseList) > 1) {
 				$tokenHash{'ALT'} = join(',', map {$_ == $altBaseIndex ? "[$altBaseList[$_]]" : $altBaseList[$_]} 0 .. $#altBaseList);
 			}
-			foreach my $index (0 .. $#sampleList) {
-				if($tokenHashList[$index]->{'AD'}) {
-					my @alleleDepthList = split(/,/, $tokenHashList[$index]->{'AD'});
-					$tokenHashList[$index]->{'refAD'} = $alleleDepthList[0];
-					$tokenHashList[$index]->{'altAD'} = $alleleDepthList[$altBaseIndex + 1];
+			foreach my $tokenHash (@tokenHashList) {
+				if($tokenHash->{'AD'}) {
+					my @alleleDepthList = split(/,/, $tokenHash->{'AD'});
+					$tokenHash->{'refAD'} = $alleleDepthList[0];
+					$tokenHash->{'altAD'} = $alleleDepthList[$altBaseIndex + 1];
 				}
 			}
 			if($normalSample ne '') {
 				foreach my $column (@normalSampleColumnList) {
 					$tokenHash{"normal.$column"} = $tokenHashList[$sampleIndexHash{$normalSample}]->{$column};
 				}
+				unless(defined($tokenHash{'normal.AF'})) {
+					if(defined(my $depth = $tokenHashList[$sampleIndexHash{$normalSample}]->{'DP'})) {
+						$tokenHash{'normal.AF'} = $tokenHash{'normal.altAD'} / $depth;
+					}
+				}
 			}
 			if($tumorSample ne '') {
 				foreach my $column (@tumorSampleColumnList) {
 					$tokenHash{"tumor.$column"} = $tokenHashList[$sampleIndexHash{$tumorSample}]->{$column};
+				}
+				unless(defined($tokenHash{'tumor.AF'})) {
+					if(defined(my $depth = $tokenHashList[$sampleIndexHash{$tumorSample}]->{'DP'})) {
+						$tokenHash{'tumor.AF'} = $tokenHash{'tumor.altAD'} / $depth;
+					}
 				}
 			}
 			my $pid = open2(my $reader, my $writer, 'sort -u');
