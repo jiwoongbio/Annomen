@@ -283,26 +283,21 @@ sub printTable {
 					my @alleleDepthList = split(/,/, $tokenHash->{'AD'});
 					$tokenHash->{'refAD'} = $alleleDepthList[0];
 					$tokenHash->{'altAD'} = $alleleDepthList[$altBaseIndex + 1];
+					unless(defined($tokenHash->{'AF'})) {
+						if(defined(my $depth = $tokenHash->{'DP'})) {
+							$tokenHash->{'AF'} = $tokenHash->{'altAD'} / $depth;
+						}
+					}
 				}
 			}
-			if($normalSample ne '') {
+			if($normalSample ne '' && defined($sampleIndexHash{$normalSample})) {
 				foreach my $column (@normalSampleColumnList) {
 					$tokenHash{"normal.$column"} = $tokenHashList[$sampleIndexHash{$normalSample}]->{$column};
 				}
-				unless(defined($tokenHash{'normal.AF'})) {
-					if(defined(my $depth = $tokenHashList[$sampleIndexHash{$normalSample}]->{'DP'})) {
-						$tokenHash{'normal.AF'} = $tokenHash{'normal.altAD'} / $depth;
-					}
-				}
 			}
-			if($tumorSample ne '') {
+			if($tumorSample ne '' && defined($sampleIndexHash{$tumorSample})) {
 				foreach my $column (@tumorSampleColumnList) {
 					$tokenHash{"tumor.$column"} = $tokenHashList[$sampleIndexHash{$tumorSample}]->{$column};
-				}
-				unless(defined($tokenHash{'tumor.AF'})) {
-					if(defined(my $depth = $tokenHashList[$sampleIndexHash{$tumorSample}]->{'DP'})) {
-						$tokenHash{'tumor.AF'} = $tokenHash{'tumor.altAD'} / $depth;
-					}
 				}
 			}
 			my $pid = open2(my $reader, my $writer, 'sort -u');
