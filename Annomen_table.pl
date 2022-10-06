@@ -171,6 +171,9 @@ my $pid = open2(my $reader, my $writer, "sort -t '\t' -k1,1n -k2,2n -k3,3n");
 			}
 			if($tokenHash{'feature'} eq 'CDS') {
 				my $proteinId = getAttributeValue(\%tokenHash, 'protein_id');
+				unless(defined($proteinId)) {
+					($proteinId) = grep {defined($proteinSequenceHash{$_})} getAttributeValue(\%tokenHash, 'transcript_id', 'locus_tag', 'gene_name', 'gene');
+				}
 				$proteinId = $id unless(defined($proteinId));
 				push(@{$proteinIdListHash{$id}}, $proteinId) unless(defined($codingStartEndListHash{$id}->{$proteinId}));
 				push(@{$codingStartEndListHash{$id}->{$proteinId}}, [@tokenHash{'start', 'end'}]);
@@ -397,17 +400,22 @@ sub printTable {
 			}
 		} else {
 			if(defined($proteinId)) {
-				my $codingRegions = join('..', sort {$a <=> $b} @exon2transcriptPositionHash{$codingStartEndList->[0]->[0], $codingStartEndList->[-1]->[1]});
-				if($codingRegions =~ s/([0-9]+)$//) {
-					if(translate(substr($transcriptSequence, $1 - 3, 3)) ne '*' && translate(substr($transcriptSequence, $1, 3)) eq '*') {
-						$codingRegions .= $1 + 3;
-					} else {
-						$codingRegions .= $1;
+				my @codingStartEndTranscriptPositionList = @exon2transcriptPositionHash{$codingStartEndList->[0]->[0], $codingStartEndList->[-1]->[1]};
+				if(defined($codingStartEndTranscriptPositionList[0]) && defined($codingStartEndTranscriptPositionList[1])) {
+					my $codingRegions = join('..', sort {$a <=> $b} @codingStartEndTranscriptPositionList);
+					if($codingRegions =~ s/([0-9]+)$//) {
+						if(translate(substr($transcriptSequence, $1 - 3, 3)) ne '*' && translate(substr($transcriptSequence, $1, 3)) eq '*') {
+							$codingRegions .= $1 + 3;
+						} else {
+							$codingRegions .= $1;
+						}
 					}
+					my @codingTranscriptPositionList = eval($codingRegions);
+					my @codingExonPositionList = sort {$a <=> $b} grep {defined} @transcript2exonPositionHash{@codingTranscriptPositionList};
+					push(@cdsList, [$proteinId, @codingExonPositionList[0, -1], $codingRegions, $frame]);
+				} else {
+					print STDERR join("\t", $transcriptId, $proteinId, 'unmatched coding start/end position'), "\n";
 				}
-				my @codingTranscriptPositionList = eval($codingRegions);
-				my @codingExonPositionList = sort {$a <=> $b} grep {defined} @transcript2exonPositionHash{@codingTranscriptPositionList};
-				push(@cdsList, [$proteinId, @codingExonPositionList[0, -1], $codingRegions, $frame]);
 			}
 		}
 		my %cdsHash = ();
@@ -425,9 +433,12 @@ sub printTable {
 					$proteinSequence = $proteinSequenceHash{$proteinId} = $translateSequence;
 				}
 			}
-			if($frame > 0 && $proteinSequence =~ /^X$translateSequence/) {
-				$translateSequence = "X$translateSequence";
-				$cds->[4] = $frame = $frame - 3;
+			if($frame > 0) {
+				(my $translateTerminateSequence = $translateSequence) =~ s/\*.*$//;
+				if($proteinSequence =~ /^X$translateTerminateSequence/) {
+					$translateSequence = "X$translateSequence";
+					$cds->[4] = $frame = $frame - 3;
+				}
 			}
 			if($translateSequence ne $proteinSequence) {
 				for(my $index = 0; $index < length($proteinSequence) || $index < length($proteinSequence); $index++) {

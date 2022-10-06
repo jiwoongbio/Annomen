@@ -3,6 +3,7 @@ use strict;
 use warnings;
 local $SIG{__WARN__} = sub { die $_[0] };
 
+use IPC::Open2;
 use Bio::DB::Fasta;
 use Getopt::Long;
 
@@ -15,18 +16,30 @@ my $db = Bio::DB::Fasta->new($referenceFastaFile);
 my %trinucleotidesCountHash = ();
 my $totalCount = 0;
 foreach my $variantFile (@variantFileList) {
-	open(my $reader, ($variantFile =~ /\.gz$/ ? "gzip -dc $variantFile |" : $variantFile));
-	chomp(my $line = <$reader>);
-	$line =~ s/^#//;
-	my @columnList = split(/\t/, $line, -1);
-	while(my $line = <$reader>) {
-		chomp($line);
-		my %tokenHash = ();
-		@tokenHash{@columnList} = split(/\t/, $line, -1);
-		my ($chromosome, $position, $refBase, $altBase) = @tokenHash{'Chromosome', 'Position', 'Reference base', 'Alternate base'};
-		($altBase, my $allele) = getAltBaseAllele($altBase);
-		next unless(grep {$_ eq $allele} split(/[\/|]/, $tokenHash{'Genotype'}));
-		if($refBase =~ /^[ACGT]$/ && $altBase =~ /^[ACGT]$/ && $refBase ne $altBase) {
+	my $pid = open2(my $reader, my $writer, "sort -u");
+	{
+		open(my $reader, ($variantFile =~ /\.gz$/ ? "gzip -dc $variantFile |" : $variantFile));
+		chomp(my $line = <$reader>);
+		$line =~ s/^#//;
+		my @columnList = split(/\t/, $line, -1);
+		while(my $line = <$reader>) {
+			chomp($line);
+			my %tokenHash = ();
+			@tokenHash{@columnList} = split(/\t/, $line, -1);
+			my ($chromosome, $position, $refBase, $altBase) = @tokenHash{'Chromosome', 'Position', 'Reference base', 'Alternate base'};
+			($altBase, my $allele) = getAltBaseAllele($altBase);
+			next unless(grep {$_ eq $allele} split(/[\/|]/, $tokenHash{'Genotype'}));
+			if($refBase =~ /^[ACGT]$/ && $altBase =~ /^[ACGT]$/ && $refBase ne $altBase) {
+				print $writer join("\t", $chromosome, $position, $refBase, $altBase), "\n";
+			}
+		}
+		close($reader);
+	}
+	close($writer);
+	{
+		while(my $line = <$reader>) {
+			chomp($line);
+			my ($chromosome, $position, $refBase, $altBase) = split(/\t/, $line, -1);
 			my $refTrinucleotide = uc($db->seq($chromosome, $position - 1, $position + 1));
 			substr(my $altTrinucleotide = $refTrinucleotide, 1, 1, $altBase);
 			unless(grep {$_ eq $refBase} ('C', 'T')) {
@@ -39,6 +52,7 @@ foreach my $variantFile (@variantFileList) {
 		}
 	}
 	close($reader);
+	waitpid($pid, 0);
 }
 
 foreach my $refBase ('C', 'T') {

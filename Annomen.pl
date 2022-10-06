@@ -14,6 +14,7 @@ GetOptions(
 	'S=s' => \(my $startCodons = 'ATG,CTG,TTG'),
 	'r' => \(my $checkReferenceVariation = ''),
 	'p=i' => \(my $peptideFlankingLength = 0),
+	'R' => \(my $noCodingVariationNomenclature = ''),
 );
 if($help || scalar(@ARGV) == 0) {
 	die <<EOF;
@@ -24,7 +25,8 @@ Options: -h       display this help message
          -C STR   codon and translation e.g. ATG=M [NCBI genetic code 1 (standard)]
          -S STR   comma-separated start codons [$startCodons]
          -r       check reference variation
-         -p       peptide flanking length
+         -p INT   peptide flanking length
+         -R       no coding variation nomenclature
 
 EOF
 }
@@ -452,7 +454,7 @@ sub getProteinMutation {
 
 sub getNucleotideVariationNomenclature {
 	my ($nucleotideSequence, $nucleotideVariationPosition, $originalNucleotideVariation, $mutationNucleotideVariation, $tokenHash) = @_;
-	my $typeLetter = $tokenHash->{'codingRegions'} ne '' ? 'c' : 'r';
+	my $typeLetter = $noCodingVariationNomenclature eq '' && $tokenHash->{'codingRegions'} ne '' ? 'c' : 'r';
 	my ($originalNucleotideVariationLength, $mutationNucleotideVariationLength) = map {length} ($originalNucleotideVariation, $mutationNucleotideVariation);
 	my ($startNumber, $endNumber) = map {getNucleotideNumber($_, $tokenHash->{'region'}, $tokenHash)} ($nucleotideVariationPosition, $nucleotideVariationPosition + $originalNucleotideVariationLength - 1);
 	return "$typeLetter.$startNumber$originalNucleotideVariation>$mutationNucleotideVariation" if($originalNucleotideVariationLength == 1 && $mutationNucleotideVariationLength == 1);
@@ -492,7 +494,7 @@ sub getNucleotideVariationNomenclature {
 sub getNucleotideNumber {
 	my ($position, $region, $tokenHash) = @_;
 	if($region eq 'exon') {
-		if($tokenHash->{'codingRegions'} ne '') {
+		if($noCodingVariationNomenclature eq '' && $tokenHash->{'codingRegions'} ne '') {
 			return $position - $tokenHash->{'codingStartInTranscript'} if($position < $tokenHash->{'codingStartInTranscript'});
 			return '*' . ($position - $tokenHash->{'codingEndInTranscript'}) if($position > $tokenHash->{'codingEndInTranscript'});
 			return $position - $tokenHash->{'codingStartInTranscript'} + 1;

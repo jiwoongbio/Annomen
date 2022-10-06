@@ -285,7 +285,7 @@ sub printTable {
 					$tokenHash->{'altAD'} = $alleleDepthList[$altBaseIndex + 1];
 					unless(defined($tokenHash->{'AF'})) {
 						if(defined(my $depth = $tokenHash->{'DP'})) {
-							$tokenHash->{'AF'} = $tokenHash->{'altAD'} / $depth;
+							$tokenHash->{'AF'} = $depth > 0 ? $tokenHash->{'altAD'} / $depth : "$tokenHash->{'altAD'}/$depth";
 						}
 					}
 				}
@@ -302,9 +302,11 @@ sub printTable {
 			}
 			my $pid = open2(my $reader, my $writer, 'sort -u');
 			if($doNotPrintUnmatchedVariant || $doNotPrintCommonVariant) {
-				my @matchedTokenHashList = grep {grep {$_ == $altBaseIndex + 1} split(/[\/|]/, $_->{'GT'})} @tokenHashList;
-				next if($doNotPrintCommonVariant && scalar(@matchedTokenHashList) == scalar(@tokenHashList));
-				printLines($writer, \%titleTokenHashListHash, \@matchedTokenHashList, \%tokenHash, 0) if(@matchedTokenHashList);
+				if(my @matchedTokenHashList = grep {grep {$_ == $altBaseIndex + 1} split(/[\/|]/, $_->{'GT'})} @tokenHashList) {
+					unless($doNotPrintCommonVariant && scalar(@matchedTokenHashList) == scalar(@tokenHashList)) {
+						printLines($writer, \%titleTokenHashListHash, \@matchedTokenHashList, \%tokenHash, 0);
+					}
+				}
 			} else {
 				printLines($writer, \%titleTokenHashListHash, \@tokenHashList, \%tokenHash, 0);
 			}
