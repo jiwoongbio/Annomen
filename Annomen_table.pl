@@ -128,6 +128,10 @@ my $pid = open2(my $reader, my $writer, "sort -t '\t' -k1,1n -k2,2n -k3,3n");
 		$tokenHash{'attribute'} = \%attributeHash;
 		my @remainIdList = ();
 		foreach my $id (@idList) {
+			unless(defined($tokenHashHash{$id})) {
+				print STDERR join("\t", $id, 'undefined'), "\n";
+				next;
+			}
 			if($tokenHashHash{$id}->{'chromosome'} ne $tokenHash{'chromosome'} || (defined($tokenHashHash{$id}->{'end'}) && $tokenHashHash{$id}->{'end'} < $tokenHash{'start'})) {
 				my ($transcriptId, $geneName) = (getAttributeValue($tokenHashHash{$id}, 'transcript_id', 'locus_tag', 'gene_name', 'gene'), getAttributeValue($tokenHashHash{$id}, 'gene_name', 'gene'));
 				if(defined(my $proteinIdList = $proteinIdListHash{$id})) {
