@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/bash
 # Author: Jiwoong Kim (jiwoongbio@gmail.com)
 
 # Requirements
