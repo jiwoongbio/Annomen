@@ -17,7 +17,7 @@ rm -rf mm10.fa.gz refseq/M_musculus/mRNA_Prot mouse.rna.fna mouse.protein.faa mo
 
 # Prepare reference genome fasta file
 if test -r "$genomeFastaFile"; then
-	ln -sf $genomeFastaFile mm10.fasta
+	ln -sf "$genomeFastaFile" mm10.fasta
 else 
 	lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.fa.gz'
 	gzip -d mm10.fa.gz

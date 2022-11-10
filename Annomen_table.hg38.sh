@@ -17,7 +17,7 @@ rm -rf hg38.fa.gz refseq/H_sapiens/mRNA_Prot human.rna.fna human.protein.faa hum
 
 # Prepare reference genome fasta file
 if test -r "$genomeFastaFile"; then
-	ln -sf $genomeFastaFile hg38.fasta
+	ln -sf "$genomeFastaFile" hg38.fasta
 else 
 	lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz'
 	gzip -d hg38.fa.gz
