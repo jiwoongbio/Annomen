@@ -16,12 +16,12 @@
 rm -rf mm10.fa.gz refseq/M_musculus/mRNA_Prot mouse.rna.fna mouse.protein.faa mouse.rna.gbff Annomen_table.mm10.txt Annomen_table.mm10.log
 
 # Prepare reference genome fasta file
-genomeFastaFile=`readlink -f ~/data/igenomes/Mus_musculus/UCSC/mm10/Sequence/WholeGenomeFasta/genome.fa`
-if test -r $genomeFastaFile; then
+if test -r "$genomeFastaFile"; then
 	ln -sf $genomeFastaFile mm10.fasta
 else 
 	lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.fa.gz'
-	gzip -dc mm10.fa.gz > mm10.fasta
+	gzip -d mm10.fa.gz
+	ln -sf mm10.fa mm10.fasta
 fi
 
 # Download RefSeq files from NCBI FTP

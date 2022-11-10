@@ -16,12 +16,12 @@
 rm -rf hg38.fa.gz refseq/H_sapiens/mRNA_Prot human.rna.fna human.protein.faa human.rna.gbff Annomen_table.hg38.txt Annomen_table.hg38.log
 
 # Prepare reference genome fasta file
-genomeFastaFile=`readlink -f ~/data/igenomes/Homo_sapiens/UCSC/hg38/Sequence/WholeGenomeFasta/genome.fa`
-if test -r $genomeFastaFile; then
+if test -r "$genomeFastaFile"; then
 	ln -sf $genomeFastaFile hg38.fasta
 else 
 	lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz'
-	gzip -dc hg38.fa.gz > hg38.fasta
+	gzip -d hg38.fa.gz
+	ln -sf hg38.fa hg38.fasta
 fi
 
 # Download RefSeq files from NCBI FTP
