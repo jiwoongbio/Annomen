@@ -3,8 +3,8 @@
 
 directory=`dirname $0`
 inputFile=$1
-referenceFastaFile=$directory/mm10.fasta
-annotationTableFile=$directory/Annomen_table.mm10.txt
+referenceFastaFile=$directory/mm39.fasta
+annotationTableFile=$directory/Annomen_table.mm39.txt
 transcriptFastaFile=$directory/mouse.rna.fna
 proteinFastaFile=$directory/mouse.protein.faa
 

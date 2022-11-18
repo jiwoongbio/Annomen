@@ -13,15 +13,15 @@
 # 5. lftp: http://lftp.yar.ru
 
 # Remove old files
-rm -rf mm10.fa.gz refseq/M_musculus/mRNA_Prot mouse.rna.fna mouse.protein.faa mouse.rna.gbff Annomen_table.mm10.txt Annomen_table.mm10.log
+rm -rf mm39.fa.gz refseq/M_musculus/mRNA_Prot mouse.rna.fna mouse.protein.faa mouse.rna.gbff Annomen_table.mm39.txt Annomen_table.mm39.log
 
 # Prepare reference genome fasta file
 if test -r "$genomeFastaFile"; then
-	ln -sf "$genomeFastaFile" mm10.fasta
+	ln -sf "$genomeFastaFile" mm39.fasta
 else 
-	lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.fa.gz'
-	gzip -d mm10.fa.gz
-	ln -sf mm10.fa mm10.fasta
+	lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/mm39/bigZips/mm39.fa.gz'
+	gzip -d mm39.fa.gz
+	ln -sf mm39.fa mm39.fasta
 fi
 
 # Download RefSeq files from NCBI FTP
@@ -32,9 +32,9 @@ for file in refseq/M_musculus/mRNA_Prot/mouse.*.rna.fna.gz;     do gzip -dc $fil
 for file in refseq/M_musculus/mRNA_Prot/mouse.*.protein.faa.gz; do gzip -dc $file; done > mouse.protein.faa
 for file in refseq/M_musculus/mRNA_Prot/mouse.*.rna.gbff.gz;    do gzip -dc $file; done | perl splitGenBank.pl - mouse.rna.gbff
 
-lftp -c 'mirror -p -L ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/635/GCF_000001635.26_GRCm38.p6'
+lftp -c 'mirror -p -L ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/635/GCF_000001635.27_GRCm39'
 
-grep -v '^#' GCF_000001635.26_GRCm38.p6/GCF_000001635.26_GRCm38.p6_assembly_report.txt | cut -f7,10 | sed 's/\r$//' > chromosome.mm10.txt
+grep -v '^#' GCF_000001635.27_GRCm39/GCF_000001635.27_GRCm39_assembly_report.txt | cut -f7,10 | sed 's/\r$//' > chromosome.mm39.txt
 
 # Generate Annomen table
-perl Annomen_table.pl -c chromosome.mm10.txt GCF_000001635.26_GRCm38.p6/GCF_000001635.26_GRCm38.p6_genomic.gff.gz mm10.fasta mouse.rna.fna mouse.protein.faa mouse.rna.gbff > Annomen_table.mm10.txt 2> Annomen_table.mm10.log
+perl Annomen_table.pl -c chromosome.mm39.txt GCF_000001635.27_GRCm39/GCF_000001635.27_GRCm39_genomic.gff.gz mm39.fasta mouse.rna.fna mouse.protein.faa mouse.rna.gbff > Annomen_table.mm39.txt 2> Annomen_table.mm39.log
