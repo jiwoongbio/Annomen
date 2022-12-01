@@ -9,19 +9,19 @@
 # 3. EMBOSS: http://emboss.sourceforge.net
 #    - needle
 #    - stretcher
-# 4. Basic linux commands: bash, rm, gzip, sort, echo, find, sed, awk
+# 4. Basic linux commands: bash, rm, gzip, sort, echo, find, sed, awk, wget
 # 5. lftp: http://lftp.yar.ru
 
 # Remove old files
-rm -rf hg38.fa.gz refseq/H_sapiens/mRNA_Prot human.rna.fna human.protein.faa human.rna.gbff Annomen_table.hg38.txt Annomen_table.hg38.log
+rm -rf hg38.analysisSet.fa.gz hg38.analysisSet.fa refseq/H_sapiens/mRNA_Prot human.rna.fna human.protein.faa human.rna.gbff Annomen_table.hg38.txt Annomen_table.hg38.log
 
 # Prepare reference genome fasta file
 if test -r "$genomeFastaFile"; then
 	ln -sf "$genomeFastaFile" hg38.fasta
 else 
-	lftp -c 'get http://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz'
-	gzip -d hg38.fa.gz
-	ln -sf hg38.fa hg38.fasta
+	wget --no-verbose https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/analysisSet/hg38.analysisSet.fa.gz
+	gzip -d hg38.analysisSet.fa.gz
+	ln -sf hg38.analysisSet.fa hg38.fasta
 fi
 
 # Download RefSeq files from NCBI FTP

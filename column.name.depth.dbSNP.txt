@@ -1,0 +1,20 @@
+CHROM	Chromosome
+POS	Position
+REF	Reference base
+ALT	Alternate base
+SAMPLE	Sample
+GT	Genotype
+DP	Read depth
+refAD	Reference allele depth
+altAD	Alternate allele depth
+AF	Variant allele frequency
+Annomen.geneName	Gene name
+Annomen.region	Region type
+Annomen.mutation	Mutation class
+Annomen.strand	Strand
+Annomen.spliceDistance	Splice distance
+Annomen.transcriptId	Transcript ID
+Annomen.proteinId	Protein ID
+Annomen.nucleotideVariationNomenclature	Transcript variation nomenclature
+Annomen.proteinVariationNomenclature	Protein variation nomenclature
+ID	dbSNP
