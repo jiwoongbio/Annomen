@@ -33,7 +33,8 @@ while(my $line = <$reader>) {
 	my %tokenHash = ();
 	@tokenHash{'chromosome', 'source', 'feature', 'start', 'end', 'score', 'strand', 'frame', 'attribute'} = split(/\t/, $line);
 	my %attributeHash = ();
-	$attributeHash{$1} = $2 while($tokenHash{'attribute'} =~ m/([^; ]+)=([^;]+)(;|$)/g);
+	$attributeHash{$1} = $2 while($tokenHash{'attribute'} =~ m/([^;= ]+)=([^;]+)(;|$)/g);
+	$attributeHash{$1} = $2 while($tokenHash{'attribute'} =~ m/([^;" ]+) +"([^;"]+)"(;|$)/g);
 	$tokenHash{'attribute'} = \%attributeHash;
 	my @deleteIdList = ();
 	foreach my $id (keys %tokenHashHash) {
