@@ -21,7 +21,7 @@ rm -rf Annomen_table.txt Annomen_table.log
 if test -r "$genomeFastaFile"; then
 	ln -sf "$genomeFastaFile" genome.fasta
 else 
-	wget --no-verbose https://hgdownload.soe.ucsc.edu/goldenPath/mm39/bigZips/mm39.fa.gz
+	wget --no-verbose --no-check-certificate https://hgdownload.soe.ucsc.edu/goldenPath/mm39/bigZips/mm39.fa.gz
 	gzip -d mm39.fa.gz
 	ln -sf mm39.fa genome.fasta
 fi
