@@ -27,14 +27,14 @@ else
 fi
 
 # Download RefSeq files from NCBI FTP
-lftp -c 'mirror -p -L ftp://ftp.ncbi.nlm.nih.gov/refseq/M_musculus/mRNA_Prot refseq/M_musculus/mRNA_Prot'
+lftp -c 'mirror -p -L https://ftp.ncbi.nlm.nih.gov/refseq/M_musculus/mRNA_Prot refseq/M_musculus/mRNA_Prot'
 
 # Prepare input files: 1. transcript FASTA, 2. protein FASTA, 3. transcript GenBank
 for file in refseq/M_musculus/mRNA_Prot/mouse.*.rna.fna.gz;     do gzip -dc $file; done > refseq.transcript.fasta
 for file in refseq/M_musculus/mRNA_Prot/mouse.*.protein.faa.gz; do gzip -dc $file; done > refseq.protein.fasta
 for file in refseq/M_musculus/mRNA_Prot/mouse.*.rna.gbff.gz;    do gzip -dc $file; done | perl splitGenBank.pl - refseq.transcript.gbff
 
-lftp -c 'mirror -p -L ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/635/GCF_000001635.26_GRCm38.p6'
+lftp -c 'mirror -p -L https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/635/GCF_000001635.26_GRCm38.p6'
 
 grep -v '^#' GCF_000001635.26_GRCm38.p6/GCF_000001635.26_GRCm38.p6_assembly_report.txt | cut -f7,10 | sed 's/\r$//' > chromosome.UCSC.txt
 
