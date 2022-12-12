@@ -26,14 +26,14 @@ else
 fi
 
 # Download RefSeq files from NCBI FTP
-wget --no-verbose --no-check-certificate --recursive -e robots=off --reject "index.html" --no-host-directories --cut-dirs=0 https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/mRNA_Prot
+wget --no-verbose --no-check-certificate --recursive --execute robots=off --reject 'index.html*' --no-parent --level=1 --no-host-directories --cut-dirs=0 https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/mRNA_Prot/
 
 # Prepare input files: 1. transcript FASTA, 2. protein FASTA, 3. transcript GenBank
 for file in refseq/H_sapiens/mRNA_Prot/human.*.rna.fna.gz;     do gzip -dc $file; done > refseq.transcript.fasta
 for file in refseq/H_sapiens/mRNA_Prot/human.*.protein.faa.gz; do gzip -dc $file; done > refseq.protein.fasta
 for file in refseq/H_sapiens/mRNA_Prot/human.*.rna.gbff.gz;    do gzip -dc $file; done | perl splitGenBank.pl - refseq.transcript.gbff
 
-wget --no-verbose --no-check-certificate --recursive -e robots=off --reject "index.html" --no-host-directories --cut-dirs=6 https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_GRCh38.p14
+wget --no-verbose --no-check-certificate --recursive --execute robots=off --reject 'index.html*' --no-parent --level=1 --no-host-directories --cut-dirs=6 https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_GRCh38.p14/
 
 grep -v '^#' GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_assembly_report.txt | cut -f7,10 | sed 's/\r$//' > chromosome.UCSC.txt
 
