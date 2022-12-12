@@ -10,7 +10,6 @@
 #    - needle
 #    - stretcher
 # 4. Basic linux commands: bash, rm, gzip, sort, echo, find, sed, awk, wget
-# 5. lftp: http://lftp.yar.ru
 
 # Remove old files
 rm -rf mm39.fa.gz mm39.fa 
@@ -27,14 +26,14 @@ else
 fi
 
 # Download RefSeq files from NCBI FTP
-lftp -c 'mirror -p -L https://ftp.ncbi.nlm.nih.gov/refseq/M_musculus/mRNA_Prot refseq/M_musculus/mRNA_Prot'
+wget --no-verbose --no-check-certificate --recursive -e robots=off --reject "index.html" --no-host-directories --cut-dirs=0 https://ftp.ncbi.nlm.nih.gov/refseq/M_musculus/mRNA_Prot
 
 # Prepare input files: 1. transcript FASTA, 2. protein FASTA, 3. transcript GenBank
 for file in refseq/M_musculus/mRNA_Prot/mouse.*.rna.fna.gz;     do gzip -dc $file; done > refseq.transcript.fasta
 for file in refseq/M_musculus/mRNA_Prot/mouse.*.protein.faa.gz; do gzip -dc $file; done > refseq.protein.fasta
 for file in refseq/M_musculus/mRNA_Prot/mouse.*.rna.gbff.gz;    do gzip -dc $file; done | perl splitGenBank.pl - refseq.transcript.gbff
 
-lftp -c 'mirror -p -L https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/635/GCF_000001635.27_GRCm39'
+wget --no-verbose --no-check-certificate --recursive -e robots=off --reject "index.html" --no-host-directories --cut-dirs=6 https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/635/GCF_000001635.27_GRCm39
 
 grep -v '^#' GCF_000001635.27_GRCm39/GCF_000001635.27_GRCm39_assembly_report.txt | cut -f7,10 | sed 's/\r$//' > chromosome.UCSC.txt
 
