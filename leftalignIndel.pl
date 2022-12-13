@@ -14,7 +14,7 @@ GetOptions(
 my ($inputFile, $referenceFastaFile) = @ARGV;
 my $db = Bio::DB::Fasta->new($referenceFastaFile);
 my $vcf = 0;
-open(my $reader, $inputFile);
+open(my $reader, ($inputFile =~ /\.gz$/ ? "gzip -dc $inputFile |" : $inputFile));
 while(my $line = <$reader>) {
 	chomp($line);
 	if($line =~ /^#/) {
