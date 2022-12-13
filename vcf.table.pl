@@ -30,7 +30,7 @@ GetOptions(
 if($help || scalar(@ARGV) == 0) {
 	die <<EOF;
 
-Usage:   perl vcf.table.pl [options] input.vcf column=name [...]
+Usage:   perl vcf.table.pl [options] input.vcf column=name [...] > variant.txt
 
 Options: -h       display this help message
          -t DIR   temporary directory [$temporaryDirectory]
@@ -267,7 +267,7 @@ sub printTable {
 						} elsif($column1 =~ /^(.*)\.(.*)$/) {
 							my ($title1, $column1) = ($1, "$1.$2");
 							if(defined(my $tokenHashList1 = $titleTokenHashListHash{$title1})) {
-								$tokenHash{$column} = executeFunction($function, grep {defined($_)} map {$_->{$column1}} @$tokenHashList1);
+								$tokenHash{$column} = executeFunction($function, grep {defined} map {$_->{$column1}} @$tokenHashList1);
 							} else {
 								$tokenHash{$column} = '';
 							}
