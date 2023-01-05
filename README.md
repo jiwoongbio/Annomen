@@ -34,14 +34,20 @@ Annotate variant nomenclature
 ## Requirements
 
 1. Perl: https://www.perl.org
-2. BioPerl: http://www.bioperl.org/wiki/Main_Page
+2. BioPerl: https://bioperl.org
    * Bio::DB::Fasta
    * Bio::SeqIO
 3. EMBOSS: http://emboss.sourceforge.net or EMBOSS-6.6.0.reduced.tar.gz
    * needle
    * stretcher
-4. Basic linux commands: bash, rm, gzip, sort, echo, find, sed, awk
-5. lftp: http://lftp.yar.ru
+4. Basic linux commands: bash, rm, gzip, sort, echo, find, sed, awk, wget
+
+You can use conda to install the requirements as follows:
+
+```
+conda create -n Annomen -c bioconda perl perl-bioperl emboss
+conda install -n Annomen -c anaconda wget
+```
 
 
 ## Install
