@@ -6,7 +6,7 @@
 # 2. BioPerl: http://www.bioperl.org/wiki/Main_Page
 #    - Bio::DB::Fasta
 #    - Bio::SeqIO
-# 3. EMBOSS: http://emboss.sourceforge.net or EMBOSS-6.6.0.reduced.tar.gz
+# 3. EMBOSS: http://emboss.sourceforge.net or EMBOSS-6.6.0.reduced.tar.gz or conda install -c bioconda emboss
 #    - needle
 #    - stretcher
 # 4. Basic linux commands: bash, rm, gzip, sort, echo, find, sed, awk, wget
