@@ -29,13 +29,14 @@ fi
 wget --no-verbose --no-check-certificate --recursive --execute robots=off --reject 'index.html*' --no-parent --level=1 --no-host-directories --cut-dirs=0 https://ftp.ncbi.nlm.nih.gov/refseq/R_norvegicus/mRNA_Prot/
 
 # Prepare input files: 1. transcript FASTA, 2. protein FASTA, 3. transcript GenBank
-for file in refseq/R_norvegicus/mRNA_Prot/human.*.rna.fna.gz;     do gzip -dc $file; done > refseq.transcript.fasta
-for file in refseq/R_norvegicus/mRNA_Prot/human.*.protein.faa.gz; do gzip -dc $file; done > refseq.protein.fasta
-for file in refseq/R_norvegicus/mRNA_Prot/human.*.rna.gbff.gz;    do gzip -dc $file; done | perl splitGenBank.pl - refseq.transcript.gbff
+for file in refseq/R_norvegicus/mRNA_Prot/rat.*.rna.fna.gz;     do gzip -dc $file; done > refseq.transcript.fasta
+for file in refseq/R_norvegicus/mRNA_Prot/rat.*.protein.faa.gz; do gzip -dc $file; done > refseq.protein.fasta
+for file in refseq/R_norvegicus/mRNA_Prot/rat.*.rna.gbff.gz;    do gzip -dc $file; done | perl splitGenBank.pl - refseq.transcript.gbff
 
 wget --no-verbose --no-check-certificate --recursive --execute robots=off --reject 'index.html*' --no-parent --level=1 --no-host-directories --cut-dirs=6 https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/015/227/675/GCF_015227675.2_mRatBN7.2/
 
-grep -v '^#' GCF_015227675.2_mRatBN7.2/GCF_015227675.2_mRatBN7.2_assembly_report.txt | cut -f7,10 | sed 's/\r$//' > chromosome.UCSC.txt
+wget --no-verbose --no-check-certificate https://hgdownload.soe.ucsc.edu/goldenPath/rn7/bigZips/rn7.chromAlias.txt
+grep -v '^#' rn7.chromAlias.txt | awk -F'\t' -vOFS='\t' '{print $4, $1}' > chromosome.UCSC.txt
 
 # Generate Annomen table
 perl Annomen_table.pl -c chromosome.UCSC.txt GCF_015227675.2_mRatBN7.2/GCF_015227675.2_mRatBN7.2_genomic.gff.gz genome.fasta refseq.transcript.fasta refseq.protein.fasta refseq.transcript.gbff > Annomen_table.txt 2> Annomen_table.log
