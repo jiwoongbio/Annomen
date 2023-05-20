@@ -283,10 +283,8 @@ sub printTable {
 					my @alleleDepthList = split(/,/, $tokenHash->{'AD'});
 					$tokenHash->{'refAD'} = $alleleDepthList[0];
 					$tokenHash->{'altAD'} = $alleleDepthList[$altBaseIndex + 1];
-					unless(defined($tokenHash->{'AF'})) {
-						if(defined(my $depth = $tokenHash->{'DP'})) {
-							$tokenHash->{'AF'} = $depth > 0 ? $tokenHash->{'altAD'} / $depth : "$tokenHash->{'altAD'}/$depth";
-						}
+					if(defined(my $depth = $tokenHash->{'DP'})) {
+						$tokenHash->{'AF'} = $depth > 0 ? $tokenHash->{'altAD'} / $depth : "$tokenHash->{'altAD'}/$depth";
 					}
 				}
 			}
