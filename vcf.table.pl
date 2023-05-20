@@ -26,6 +26,7 @@ GetOptions(
 	'V' => \(my $doNotPrintUnmatchedVariant = ''),
 	'C' => \(my $doNotPrintCommonVariant = ''),
 	'U' => \(my $doNotUnphaseGenotype = ''),
+	'F' => \(my $useCalculatedAF = ''),
 );
 if($help || scalar(@ARGV) == 0) {
 	die <<EOF;
@@ -46,6 +47,7 @@ Options: -h       display this help message
          -V       do not print unmatched variant
          -C       do not print common variant
          -U       do not unphase genotype
+         -F       use calculated AF
 
 EOF
 }
@@ -283,7 +285,7 @@ sub printTable {
 					my @alleleDepthList = split(/,/, $tokenHash->{'AD'});
 					$tokenHash->{'refAD'} = $alleleDepthList[0];
 					$tokenHash->{'altAD'} = $alleleDepthList[$altBaseIndex + 1];
-					unless(defined($tokenHash->{'AF'})) {
+					if($useCalculatedAF) {
 						if(defined(my $depth = $tokenHash->{'DP'})) {
 							$tokenHash->{'AF'} = $depth > 0 ? $tokenHash->{'altAD'} / $depth : "$tokenHash->{'altAD'}/$depth";
 						}
