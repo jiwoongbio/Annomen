@@ -239,10 +239,6 @@ sub printTable {
 		if($doNotUnphaseGenotype eq '') {
 			$_->{'GT'} = unphaseGenotype($_->{'GT'}) foreach(@tokenHashList);
 		}
-		foreach my $column (@sampleColumnList) {
-			my %sampleValueHash = map {$_->{'SAMPLE'} => $_->{$column}} @tokenHashList;
-			$tokenHash{"SAMPLE.$column"} = join("\t", map {defined($_) ? $_ : ''} @sampleValueHash{@sampleList});
-		}
 		foreach my $altBaseIndex (0 .. $#altBaseList) {
 			my %titleTokenHashListHash = ();
 			if(@titleTokenHashListHashList) {
@@ -291,6 +287,10 @@ sub printTable {
 						}
 					}
 				}
+			}
+			foreach my $column (@sampleColumnList) {
+				my %sampleValueHash = map {$_->{'SAMPLE'} => $_->{$column}} @tokenHashList;
+				$tokenHash{"SAMPLE.$column"} = join("\t", map {defined($_) ? $_ : ''} @sampleValueHash{@sampleList});
 			}
 			if($normalSample ne '' && defined($sampleIndexHash{$normalSample})) {
 				foreach my $column (@normalSampleColumnList) {
