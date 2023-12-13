@@ -10,6 +10,9 @@ use Getopt::Long qw(:config no_ignore_case);
 
 exit 1 if(map {(`which $_`) ? () : $_} ('needle', 'stretcher'));
 
+my @geneNameAttributeList = ('gene_name', 'gene', 'Name');
+my @transcriptIdAttributeList = ('transcript_id', 'locus_tag', @geneNameAttributeList);
+
 chomp(my $hostname = `hostname`);
 my $temporaryDirectory = $ENV{'TMPDIR'};
 $temporaryDirectory = '/tmp' unless($temporaryDirectory);
@@ -133,7 +136,7 @@ my $pid = open2(my $reader, my $writer, "sort -t '\t' -k1,1n -k2,2n -k3,3n");
 				next;
 			}
 			if($tokenHashHash{$id}->{'chromosome'} ne $tokenHash{'chromosome'} || (defined($tokenHashHash{$id}->{'end'}) && $tokenHashHash{$id}->{'end'} < $tokenHash{'start'})) {
-				my ($transcriptId, $geneName) = (getAttributeValue($tokenHashHash{$id}, 'transcript_id', 'locus_tag', 'gene_name', 'gene'), getAttributeValue($tokenHashHash{$id}, 'gene_name', 'gene'));
+				my ($transcriptId, $geneName) = (getAttributeValue($tokenHashHash{$id}, @transcriptIdAttributeList), getAttributeValue($tokenHashHash{$id}, @geneNameAttributeList));
 				if(defined(my $proteinIdList = $proteinIdListHash{$id})) {
 					foreach my $proteinId (@$proteinIdList) {
 						if(scalar(@$proteinIdList) > 1) {
@@ -158,14 +161,14 @@ my $pid = open2(my $reader, my $writer, "sort -t '\t' -k1,1n -k2,2n -k3,3n");
 		if($tokenHash{'feature'} eq 'exon' || $tokenHash{'feature'} eq 'CDS') {
 			my $id = $tokenHash{'attribute'}->{'Parent'};
 			unless(defined($id)) {
-				$id = getAttributeValue(\%tokenHash, 'transcript_id', 'locus_tag');
+				$id = getAttributeValue(\%tokenHash, @transcriptIdAttributeList);
 				unless(defined($tokenHashHash{$id})) {
 					$tokenHashHash{$id}->{'attribute'}->{'transcript_id'} = $id;
 					@{$tokenHashHash{$id}}{'chromosome', 'strand'} = @tokenHash{'chromosome', 'strand'};
 					push(@idList, $id);
 				}
 				unless(defined($tokenHashHash{$id}->{'attribute'}->{'gene_name'})) {
-					if(defined(my $geneName = getAttributeValue(\%tokenHash, 'gene_name', 'gene'))) {
+					if(defined(my $geneName = getAttributeValue(\%tokenHash, @geneNameAttributeList))) {
 						$tokenHashHash{$id}->{'attribute'}->{'gene_name'} = $geneName;
 					}
 				}
@@ -176,7 +179,7 @@ my $pid = open2(my $reader, my $writer, "sort -t '\t' -k1,1n -k2,2n -k3,3n");
 			if($tokenHash{'feature'} eq 'CDS') {
 				my $proteinId = getAttributeValue(\%tokenHash, 'protein_id');
 				unless(defined($proteinId)) {
-					($proteinId) = grep {defined($proteinSequenceHash{$_})} getAttributeValue(\%tokenHash, 'transcript_id', 'locus_tag', 'gene_name', 'gene');
+					($proteinId) = grep {defined($proteinSequenceHash{$_})} getAttributeValue(\%tokenHash, @transcriptIdAttributeList);
 				}
 				$proteinId = $id unless(defined($proteinId));
 				push(@{$proteinIdListHash{$id}}, $proteinId) unless(defined($codingStartEndListHash{$id}->{$proteinId}));
@@ -194,7 +197,7 @@ my $pid = open2(my $reader, my $writer, "sort -t '\t' -k1,1n -k2,2n -k3,3n");
 		}
 	}
 	foreach my $id (@idList) {
-		my ($transcriptId, $geneName) = (getAttributeValue($tokenHashHash{$id}, 'transcript_id', 'locus_tag'), getAttributeValue($tokenHashHash{$id}, 'gene_name', 'gene'));
+		my ($transcriptId, $geneName) = (getAttributeValue($tokenHashHash{$id}, @transcriptIdAttributeList), getAttributeValue($tokenHashHash{$id}, @geneNameAttributeList));
 		if(defined(my $proteinIdList = $proteinIdListHash{$id})) {
 			foreach my $proteinId (@$proteinIdList) {
 				if(scalar(@$proteinIdList) > 1) {
@@ -545,7 +548,7 @@ sub needle {
 		print $writer "$seqB\n";
 		close($writer);
 	}
-	print STDERR `echo -en '$gapOpen\\n$gapExtend\\n' | timeout 600 needle -asequence $prefix.asequence -bsequence $prefix.bsequence -outfile $prefix.outfile -datafile $datafile`;
+	print STDERR `(echo $gapOpen; echo $gapExtend;) | timeout 600 needle -asequence $prefix.asequence -bsequence $prefix.bsequence -outfile $prefix.outfile -datafile $datafile`;
 	print STDERR "\n";
 	my ($alignA, $alignB, $identity) = ('', '', '');
 	if(-e "$prefix.outfile") {
