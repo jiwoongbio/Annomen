@@ -11,9 +11,6 @@
 #    - stretcher
 # 4. Basic linux commands: bash, rm, gzip, sort, echo, find, sed, awk, wget
 
-# Remove old files
-rm -rf Annomen_table.txt Annomen_table.log
-
 assembly_ftp_path=$1
 assembly_prefix=$(echo $assembly_ftp_path | sed 's/^.*\///')
 
@@ -22,7 +19,11 @@ wget --no-verbose --no-check-certificate --recursive --execute robots=off --reje
 gzip -dc ${assembly_prefix}/${assembly_prefix}_genomic.fna.gz > genome.fasta
 gzip -dc ${assembly_prefix}/${assembly_prefix}_protein.faa.gz > protein.fasta
 
-# Generate Annomen table
+
+# Remove old Annomen table files
+rm -rf Annomen_table.txt Annomen_table.log
+
+# Generate Annomen table files
 perl Annomen_table.pl ${assembly_prefix}/${assembly_prefix}_genomic.gff.gz genome.fasta transcript.fasta protein.fasta > Annomen_table.txt 2> Annomen_table.log
 
 
