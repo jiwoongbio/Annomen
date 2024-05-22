@@ -48,7 +48,10 @@ time fasta.length.pl transcript.fasta > transcript.length.txt
 time gzip -dc */*_genomic.gtf.gz | grep -v '^#' | sed -r 's/""([^;][^"]*)"";/"\1";/' > genome.gtf
 
 # List rRNA
-time perl gff_extract.pl -E */*_genomic.gff.gz locus_tag gene_biotype | awk -F'\t' '($2 == "rRNA")' | cut -f1 > rRNA.txt
+time perl gff_extract.pl -E */*_genomic.gff.gz locus_tag gene_biotype | awk -F'\t' '($2 == "ribosomal RNA" || $2 == "rRNA")' | cut -f1 > rRNA.txt
 
 # List locus tag / product description pairs
 time perl gff_extract.pl -E */*_genomic.gff.gz locus_tag product | sort -u > locus_tag.product.txt
+
+# Generate STAR index
+rm -rf STAR; mkdir STAR; time STAR --runThreadN 16 --runMode genomeGenerate --genomeDir STAR --genomeFastaFiles genome.fasta --sjdbGTFfile genome.gtf
