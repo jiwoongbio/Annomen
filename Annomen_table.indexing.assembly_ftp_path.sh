@@ -27,6 +27,8 @@ rm -rf Annomen_table.txt Annomen_table.log
 perl Annomen_table.pl ${assembly_prefix}/${assembly_prefix}_genomic.gff.gz genome.fasta transcript.fasta protein.fasta > Annomen_table.txt 2> Annomen_table.log
 
 
+# Indexing
+
 # Generate genome index
 time bwa index genome.fasta
 time samtools faidx genome.fasta
