@@ -11,6 +11,7 @@ my @filterList = ();
 GetOptions(
 	'h' => \(my $help = ''),
 	'f=s' => \@filterList,
+	'b=s' => \(my $booleanOperator = 'and'),
 	'E' => \(my $noEmpty = ''),
 );
 if($help || scalar(@ARGV) == 0) {
@@ -20,6 +21,7 @@ Usage:   perl gff_extract.pl [options] gene.gff [column ...] > extract.txt
 
 Options: -h       display this help message
          -f STR   filter e.g. feature=exon
+         -b STR   boolean operator, "and" or "or" [$booleanOperator]
          -E       no empty
 
 EOF
@@ -63,10 +65,19 @@ close($reader);
 
 sub extract {
 	my ($id) = @_;
-	if(all {getColumnValue($id, $_->[0]) eq $_->[1]} @filterList) {
-		my @valueList = map {getColumnValue($id, $_)} @columnList;
-		return if($noEmpty && grep {$_ eq ''} @valueList);
-		print join("\t", @valueList), "\n";
+	if($booleanOperator eq 'and') {
+		if(all {getColumnValue($id, $_->[0]) eq $_->[1]} @filterList) {
+			my @valueList = map {getColumnValue($id, $_)} @columnList;
+			return if($noEmpty && grep {$_ eq ''} @valueList);
+			print join("\t", @valueList), "\n";
+		}
+	}
+	if($booleanOperator eq 'or') {
+		if(grep {getColumnValue($id, $_->[0]) eq $_->[1]} @filterList) {
+			my @valueList = map {getColumnValue($id, $_)} @columnList;
+			return if($noEmpty && grep {$_ eq ''} @valueList);
+			print join("\t", @valueList), "\n";
+		}
 	}
 }
 
@@ -85,20 +96,24 @@ sub getAncestor {
 
 sub getColumnValue {
 	my ($id, $column) = @_;
-	if(defined(my $value = $tokenHashHash{$id}->{$column})) {
-		return $value;
-	} else {
-		return getAttributeValue($id, $column);
+	foreach my $column (split(/,/, $column)) {
+		if(defined(my $value = $tokenHashHash{$id}->{$column})) {
+			return $value;
+		}
+		if(defined(my $value = getAttributeValue($id, $column))) {
+			return $value;
+		}
 	}
+	return '';
 }
 
 sub getAttributeValue {
 	my ($id, $attribute) = @_;
 	if(defined(my $value = $tokenHashHash{$id}->{'attribute'}->{$attribute})) {
 		return $value;
-	} elsif(defined(my $parentId = $tokenHashHash{$id}->{'attribute'}->{'Parent'})) {
-		return getAttributeValue($parentId, $attribute);
-	} else {
-		return '';
 	}
+	if(defined(my $parentId = $tokenHashHash{$id}->{'attribute'}->{'Parent'})) {
+		return getAttributeValue($parentId, $attribute);
+	}
+	return undef;
 }
