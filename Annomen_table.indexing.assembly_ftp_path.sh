@@ -27,8 +27,6 @@ rm -rf Annomen_table.txt Annomen_table.log
 perl Annomen_table.pl ${assembly_prefix}/${assembly_prefix}_genomic.gff.gz genome.fasta transcript.fasta protein.fasta > Annomen_table.txt 2> Annomen_table.log
 
 
-# Indexing
-
 # Generate genome index
 time bwa index genome.fasta
 time samtools faidx genome.fasta
@@ -49,8 +47,11 @@ time fasta.length.pl transcript.fasta > transcript.length.txt
 # Unzip GTF file
 time gzip -dc */*_genomic.gtf.gz | grep -v '^#' | sed -r 's/""([^;][^"]*)"";/"\1";/' > genome.gtf
 
+# Determine a precise value of genomeSAindexNbases
+genomeSAindexNbases=$(awk -F'\t' '{genomeLength += $2} END {genomeSAindexNbases = int(log(genomeLength) / log(2) / 2 - 1); print (genomeSAindexNbases < 14 ? genomeSAindexNbases : 14)}' genome.length.txt)
+
 # Generate STAR index
-rm -rf STAR; mkdir STAR; time STAR --runThreadN 16 --runMode genomeGenerate --genomeDir STAR --genomeFastaFiles genome.fasta --sjdbGTFfile genome.gtf
+rm -rf STAR; mkdir STAR; time STAR --runThreadN 16 --runMode genomeGenerate --genomeDir STAR --genomeFastaFiles genome.fasta --sjdbGTFfile genome.gtf --genomeSAindexNbases $genomeSAindexNbases
 
 # List rRNA
 time perl gff_extract.pl -E -f feature=rRNA -f gene_biotype=rRNA -b or */*_genomic.gff.gz transcript_id,locus_tag | sort -u > rRNA.txt
