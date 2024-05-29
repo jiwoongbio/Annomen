@@ -161,9 +161,9 @@ def extract_symbol_list(gene_query):
 	completion = client.chat.completions.create(
 		model = "gpt-4o",
 		messages = [
-			{"role": "user", "content": f"Extract gene names from \"{gene_query}\" and absolutely output them as a comma-separated list only. If there are no gene names, absolutely output 0 only."},
+			{"role": "user", "content": f"Extract all possible gene names from \"{gene_query}\" and absolutely output them as a comma-separated list only. Do not guess. If there are no gene names, absolutely output 0 only."},
 		],
-		temperature = 0.4,
+		temperature = 0.2,
 	)
 	gene_query = completion.choices[0].message.content
 	if gene_query == "0":
